@@ -1,11 +1,34 @@
+"""
+Preprocessing scripts.
+
+Written by Jatin Mathur and Ed Oughton.
+
+Winter 2020
+
+"""
+import os
+import configparser
+import pandas as pd
+import numpy as np
+import requests
+import tarfile
+import gzip
+import shutil
+import glob
+import geoio
+import math
+
+CONFIG = configparser.ConfigParser()
+CONFIG.read(os.path.join(os.path.dirname(__file__), 'script_config.ini'))
+BASE_PATH = CONFIG['file_locations']['base_path']
+
+DATA_RAW = os.path.join(BASE_PATH, 'raw')
+DATA_PROCESSED = os.path.join(BASE_PATH, 'processed')
 
 
-
-
-
-def get_nightlight_data(path, data_year):
+def get_nightlight_data(folder_name, path, data_year):
     """
-    Download the nighlight data from NOAA.
+    Downloads the nighlight data from NOAA.
 
     As these files are large, they can take a couple of minutes to download.
 
@@ -13,32 +36,39 @@ def get_nightlight_data(path, data_year):
     ----------
     path : string
         Path to the desired data location.
+    data_year : int
+        The desired year of the chosen dataset (default: 2013).
 
     """
     if not os.path.exists(path):
         os.makedirs(path)
 
     for year in [data_year]:
+
         year = str(year)
         url = ('https://ngdc.noaa.gov/eog/data/web_data/v4composites/F18'
                 + year + '.v4.tar')
         target = os.path.join(path, year)
+
         if not os.path.exists(target):
             os.makedirs(target, exist_ok=True)
-        target += '/nightlights_data'
+
+        target += '/' + folder_name
         response = requests.get(url, stream=True)
+
         if not os.path.exists(target):
             if response.status_code == 200:
                 print('Downloading data')
                 with open(target, 'wb') as f:
                     f.write(response.raw.read())
+
     print('Data download complete')
 
     for year in [data_year]:
 
         print('Working on {}'.format(year))
         folder_loc = os.path.join(path, str(year))
-        file_loc = os.path.join(folder_loc, 'nightlights_data')
+        file_loc = os.path.join(folder_loc, folder_name)
 
         print('Unzipping data')
         tar = tarfile.open(file_loc)
@@ -62,7 +92,7 @@ def process_wb_survey_data(path):
     This function takes the World Bank Living Standards Measurement
     Survey and processes all the data.
 
-    I've used the 2016-2017 Household LSMS survey data for Malawi from
+    We've used the 2016-2017 Household LSMS survey data for Malawi from
     https://microdata.worldbank.org/index.php/catalog/lsms.
     It should be in ../data/raw/LSMS/malawi-2016
 
@@ -80,6 +110,11 @@ def process_wb_survey_data(path):
     - HHID: Survey solutions unique HH identifier
     - lat_modified: GPS Latitude Modified
     - lon_modified: GPS Longitude Modified
+
+    Parameters
+    ----------
+    path : string
+        Path to the desired data location.
 
     """
     ## Path to non-spatial consumption results
@@ -143,6 +178,17 @@ def process_wb_survey_data(path):
 def query_nightlight_data(filename, df_uniques, df_combined, path):
     """
     Query the nighlight data and export results.
+
+    Parameters
+    ----------
+    filename : string
+        Name of the nightlight file to load.
+    df_uniques : dataframe
+        All unique survey locations.
+    df_combined : dataframe
+        All household survey locations.
+    path : string
+        Path to the desired data location.
 
     """
     img = geoio.GeoImage(filename)
@@ -210,6 +256,11 @@ def create_space(lat, lon):
 
 def create_clusters(df_combined):
     """
+    Create cluster locations and allocate settlement type.
+
+    Parameters
+    ----------
+    df_combined : dataframe
 
     """
     # encode "RURAL" as 0 and "URBAN" as 1
@@ -241,27 +292,28 @@ def get_r2_numpy_corrcoef(x, y):
     """
     Calculate correlation coefficient using np.corrcoef.
 
+    Parameters
+    ----------
+    x : array
+        Array of numeric values.
+    y : array
+        Array of numeric values.
+
     """
     return np.corrcoef(x, y)[0, 1]**2
 
 
-
-
-
 if __name__ == '__main__':
 
-    # ###create 'global_regions.shp' if not already processed
-    # ###create each subnational region .shp if not already processed
-    # assemble_global_regional_layer()
-
     year = 2013
-    path_nightlights = os.path.join(DATA_RAW, 'nightlights')
+    folder_name = 'noaa_dmsp_ols_nightlight_data'
+    path_nightlights = os.path.join(DATA_RAW, folder_name)
     filename = 'F182013.v4c_web.stable_lights.avg_vis.tif'
     filepath = os.path.join(path_nightlights, str(year), filename)
 
     if not os.path.exists(filepath):
         print('Need to download nightlight data first')
-        get_nightlight_data(path_nightlights, year)
+        get_nightlight_data(folder_name, path_nightlights, year)
     else:
         print('Nightlight data already exists in data folder')
 
@@ -271,22 +323,20 @@ if __name__ == '__main__':
 
     print('Querying nightlight data')
     df_combined = query_nightlight_data(filepath, df_uniques,
-                df_combined, os.path.join(path_nightlights, str(year)))
+        df_combined, os.path.join(path_nightlights, str(year)))
 
     print('Creating clusters')
     clust_averages = create_clusters(df_combined)
 
-    # print('Writing Living Standards Measurement Survey data')
-    # df_combined.to_csv(os.path.join(DATA_INTERMEDIATE, 'MWI',
-    #             'lsms-household-2016.csv'), index=False)
-
+    print('Remove extreme values')
     clust_averages = clust_averages.drop(clust_averages[clust_averages.cons > 50].index)
 
     print('Getting coefficient value')
     nl_coefficient = get_r2_numpy_corrcoef(clust_averages.cons, clust_averages.nightlights)
 
+    print('Predict consumption using nightlights')
     clust_averages['cons_pred'] = clust_averages['nightlights'] * (1 + nl_coefficient)
 
     print('Writing all other data')
-    clust_averages.to_csv(os.path.join(DATA_INTERMEDIATE, 'MWI',
+    clust_averages.to_csv(os.path.join(DATA_PROCESSED,
         'lsms-cluster-2016.csv'), index=False)
