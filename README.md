@@ -26,7 +26,7 @@ Create a conda environment called `arpu_predictor`:
 
 Activate it (run each time you switch projects)::
 
-    activate pysim5g
+    activate arpu_predictor
 
 First, install required packages including `pandas` and `requests`:
 
