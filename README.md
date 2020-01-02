@@ -10,7 +10,7 @@ of being spent on telecommunications services.
 Setup and configuration
 =======================
 
-All code for **arpu_predictor** is written in Python (Python>=3.5) and has a number of dependencies.
+All code for **arpu_predictor** is written in Python (Python>=3.7) and has a number of dependencies.
 See `requirements.txt` for a full list.
 
 Using conda
@@ -28,13 +28,17 @@ Activate it (run each time you switch projects)::
 
     activate pysim5g
 
-First, install required packages including `fiona`, `shapely`, `numpy`, `rtree`, `pyproj` and `pytest`:
+First, install required packages including `pandas` and `requests`:
 
-    conda install fiona shapely numpy rtree pyproj pytest
+    conda install pandas requests
 
-To visualize the results, install `matplotlib`, `pandas` and `seaborn`:
+Conda does not have `geoio`, so also:
 
-    conda install matplotlib pandas seaborn
+    pip install geoio
+
+To visualize the results, install `matplotlib` and `seaborn`:
+
+    conda install matplotlib seaborn
 
 And then run:
 
