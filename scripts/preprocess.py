@@ -198,8 +198,8 @@ def process_wb_survey_data(path):
     ##Read results
     df = pd.read_csv(file_path)
 
-    ##Estimate daily consumption accounting for adult equivalence
-    df['cons'] = df['rexpagg'] / (365 * df['adulteq'])
+    ##Estimate monthly consumption accounting for adult equivalence
+    df['cons'] = df['rexpagg'] / (12 * df['adulteq'])
     df['cons'] = df['cons'] * 107.62 / (116.28 * 166.12)
 
     ## Rename column
