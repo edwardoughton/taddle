@@ -15,12 +15,14 @@ import geoio
 import math
 import geopandas as gpd
 import fiona
+import rasterio
 from rasterstats import zonal_stats
-from shapely.geometry import shape, mapping
+from shapely.geometry import shape, mapping, Point
 from collections import OrderedDict
 import pyproj
 from shapely.ops import transform
 from tqdm import tqdm
+import csv
 
 CONFIG = configparser.ConfigParser()
 CONFIG.read(os.path.join(os.path.dirname(__file__), 'script_config.ini'))
@@ -30,13 +32,13 @@ DATA_RAW = os.path.join(BASE_PATH, 'raw')
 DATA_PROCESSED = os.path.join(BASE_PATH, 'processed')
 
 
-def query_nightlight_data(filename, df_uniques, df_combined, path):
+def query_nightlight_data(filepath_nl, filepath_pop, df_uniques, df_combined, path):
     """
     Query the nighlight data and export results.
 
     Parameters
     ----------
-    filename : string
+    filepath_nl : string
         Name of the nightlight file to load.
     df_uniques : dataframe
         All unique survey locations.
@@ -46,47 +48,90 @@ def query_nightlight_data(filename, df_uniques, df_combined, path):
         Path to the desired data location.
 
     """
-    img = geoio.GeoImage(filename)
-    ##Convert points in projection space to points in raster space.
-    xPixel, yPixel = img.proj_to_raster(34.915074, -14.683761)
+    results = []
+    shapes = []
 
-    ##Remove single-dimensional entries from the shape of an array.
-    im_array = np.squeeze(img.get_data())
+    for i, r in df_uniques.iterrows():
 
-    ##Get the nightlight values
-    im_array[int(yPixel),int(xPixel)]
+        #create shapely object
+        lat = r.lat#.values[0]
+        lon = r.lon#.values[0]
+        geom = Point(lon, lat)
 
-    household_nightlights = []
-    for i,r in df_uniques.iterrows():
+        #transform to projected coordinate
+        project = pyproj.Transformer.from_proj(
+            pyproj.Proj('epsg:4326'), # source coordinate system
+            pyproj.Proj('epsg:3857')) # destination coordinate system
+        geom_transformed = transform(project.transform, geom)
 
-        ##Create 10km^2 bounding box around point
-        min_lat, min_lon, max_lat, max_lon = create_space(r.lat, r.lon)
+        #add 10km2 buffer
+        buffer_1km = geom_transformed.buffer(500, cap_style=3)
+        buffer_10km = geom_transformed.buffer(1580, cap_style=3)
 
-        ##Convert point coordinaces to raster space
-        xminPixel, yminPixel = img.proj_to_raster(min_lon, min_lat)
-        xmaxPixel, ymaxPixel = img.proj_to_raster(max_lon, max_lat)
+        #get area
+        area_1km2 = round(buffer_1km.area / 1e6, 1)
+        area_10km2 = round(buffer_10km.area / 1e6, 1)
 
-        ##Get min max values
-        xminPixel, xmaxPixel = (min(xminPixel, xmaxPixel),
-                                max(xminPixel, xmaxPixel))
-        yminPixel, ymaxPixel = (min(yminPixel, ymaxPixel),
-                                max(yminPixel, ymaxPixel))
-        xminPixel, yminPixel, xmaxPixel, ymaxPixel = (
-                                int(xminPixel), int(yminPixel),
-                                int(xmaxPixel), int(ymaxPixel))
+        #transform to unprojected
+        project = pyproj.Transformer.from_proj(
+            pyproj.Proj('epsg:3857'), # source coordinate system
+            pyproj.Proj('epsg:4326')) # destination coordinate system
+        geom_1km = transform(project.transform, buffer_1km)
+        geom_10km = transform(project.transform, buffer_10km)
 
-        ##Append mean value data to df
-        household_nightlights.append(
-            im_array[yminPixel:ymaxPixel,xminPixel:xmaxPixel].mean())
+        #get population
+        luminosity_sum_1km = zonal_stats(geom_1km, filepath_nl, stats="sum", nodata=0)[0]['sum']
+        population_1km = zonal_stats(geom_1km, filepath_pop, stats="sum", nodata=0)[0]['sum']
 
-    df_uniques['nightlights'] = household_nightlights
+        #get population
+        luminosity_sum_10km = zonal_stats(geom_10km, filepath_nl, stats="sum", nodata=0)[0]['sum']
+        population_10km = zonal_stats(geom_10km, filepath_pop, stats="sum", nodata=0)[0]['sum']
 
-    df_combined = pd.merge(df_combined, df_uniques[
-                    ['lat', 'lon', 'nightlights']], on=['lat', 'lon'])
+        results.append({
+            'HHID': r.HHID,
+            'lat': lat,
+            'lon': lon,
+            'luminosity_sum_1km': catch_missing_values(luminosity_sum_1km),
+            'population_1km': catch_missing_values(population_1km),
+            'area_km2_1km': area_1km2,
+            'luminosity_sum_10km': catch_missing_values(luminosity_sum_10km),
+            'population_10km': catch_missing_values(population_10km),
+            'area_km2_10km': area_10km2,
+        })
 
-    print('Complete querying process')
+        shapes.append({
+            'type': 'Polygon',
+            'geometry': mapping(geom_1km),
+            'properties': {}
+        })
 
-    return df_combined
+        shapes.append({
+            'type': 'Polygon',
+            'geometry': mapping(geom_10km),
+            'properties': {}
+        })
+
+    results = pd.DataFrame(results)
+
+    df_uniques = pd.merge(df_uniques, results, on=['lat', 'lon', 'HHID'])
+
+    df_combined = pd.merge(df_combined, results, on=['lat', 'lon', 'HHID'])
+
+    return df_combined, shapes
+
+
+def catch_missing_values(value):
+    """
+    Catch missing / none / NaN values and replace with 0.
+
+    """
+    try:
+        if value > 0:
+            return value
+        else:
+            return 0
+    except:
+        return 0
 
 
 def create_space(lat, lon):
@@ -134,7 +179,7 @@ def create_clusters(df_combined):
         lambda x: round(x))
 
     clust_averages['urban_encoded'] = clust_averages['urban_encoded'].apply(
-        lambda x: 'Rural' if x == 0 else 'Urban')
+        lambda x: 'rural' if x == 0 else 'urban')
 
     clust_averages = clust_averages.drop('urban', axis=1)
 
@@ -143,7 +188,7 @@ def create_clusters(df_combined):
     return clust_averages
 
 
-def get_r2_numpy_corrcoef(df, subset_value):
+def get_coefficients(df):
     """
     Calculate correlation coefficient using np.corrcoef.
 
@@ -155,11 +200,29 @@ def get_r2_numpy_corrcoef(df, subset_value):
         Array of numeric values.
 
     """
-    subset = df.loc[df['urban'] == subset_value]
-    x = subset.cons
-    y = subset.nightlights
+    output = {}
 
-    return np.corrcoef(x, y)[0, 1]**2
+    urban = df.loc[df['urban'] == 'urban']
+    x = urban.cons
+    y = urban.luminosity_sum_1km
+    output['urban_1km'] = np.corrcoef(x, y)[0, 1]**2
+
+    rural = df.loc[df['urban'] == 'rural']
+    x = rural.cons
+    y = rural.luminosity_sum_1km
+    output['rural_1km'] = np.corrcoef(x, y)[0, 1]**2
+
+    urban = df.loc[df['urban'] == 'urban']
+    x = urban.cons
+    y = urban.luminosity_sum_10km
+    output['urban_10km'] = np.corrcoef(x, y)[0, 1]**2
+
+    rural = df.loc[df['urban'] == 'rural']
+    x = rural.cons
+    y = rural.luminosity_sum_10km
+    output['rural_10km'] = np.corrcoef(x, y)[0, 1]**2
+
+    return output
 
 
 def load_grid(path):
@@ -192,17 +255,16 @@ def get_geom_area_km2(geom, old_crs, new_crs):
     return area_km2
 
 
-def query_data(grid, filepath_nl, filepath_lc, filepath_pop,
-    nl_coefficient_urban, nl_coefficient_rural):
+def query_data(grid, filepath_nl, filepath_lc, filepath_pop, coefficients):
     """
     Query raster layer for each shape in grid.
 
     """
     output = []
+    csv = []
 
     for grid_area in tqdm(grid):
 
-        #query
         geom = shape(grid_area['geometry'])
 
         landcover = zonal_stats(geom.centroid, filepath_lc, stats="sum", nodata=0)[0]['sum']
@@ -234,9 +296,9 @@ def query_data(grid, filepath_nl, filepath_lc, filepath_pop,
         try:
             if float(stats[0]['sum']) > 0:
                 if urban == 1:
-                    pred_consumption = float(stats[0]['sum']) * (1 + float(nl_coefficient_urban))
+                    pred_consumption = float(stats[0]['sum']) * (1 + float(coefficients['urban']))
                 else:
-                    pred_consumption = float(stats[0]['sum']) * (1 + float(nl_coefficient_rural))
+                    pred_consumption = float(stats[0]['sum']) * (1 + float(coefficients['rural']))
             else:
                 pred_consumption = 0
         except:
@@ -258,7 +320,6 @@ def query_data(grid, filepath_nl, filepath_lc, filepath_pop,
         except:
             luminosity_sum = 0
 
-
         output.append({
             'type': grid_area['type'],
             'geometry': mapping(geom),
@@ -275,7 +336,44 @@ def query_data(grid, filepath_nl, filepath_lc, filepath_pop,
             }
         })
 
-    return output
+        csv.append({
+            'population': population,
+            'pop_density_km2': pop_density_km2,
+            'area_km2': area_km2,
+            'luminosity_mean': luminosity_mean,
+            'luminosity_sum': luminosity_sum,
+            'pred_consumption': pred_consumption,
+            'landcover': landcover,
+            'urban': urban,
+        })
+
+    return output, csv
+
+
+def csv_writer(data, directory, filename):
+    """
+    Write data to a CSV file path.
+    Parameters
+    ----------
+    data : list of dicts
+        Data to be written.
+    directory : string
+        Path to export folder
+    filename : string
+        Desired filename.
+    """
+    # Create path
+    if not os.path.exists(directory):
+        os.makedirs(directory)
+
+    fieldnames = []
+    for name, value in data[0].items():
+        fieldnames.append(name)
+
+    with open(os.path.join(directory, filename), 'w') as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames, lineterminator = '\n')
+        writer.writeheader()
+        writer.writerows(data)
 
 
 def write_shapefile(data, directory, filename, crs):
@@ -311,11 +409,18 @@ def write_shapefile(data, directory, filename, crs):
 
 if __name__ == '__main__':
 
+    print('Defining nightlight data path')
     year = 2013
     folder_name = 'noaa_dmsp_ols_nightlight_data'
     path_nl = os.path.join(DATA_RAW, folder_name)
     filename = 'F182013.v4c_web.stable_lights.avg_vis.tif'
     filepath_nl = os.path.join(path_nl, str(year), filename)
+
+    print('Defining world pop data path')
+    folder_name = 'world_pop'
+    path_pop = os.path.join(DATA_RAW, folder_name)
+    filename = 'ppp_2020_1km_Aggregated.tif'
+    filepath_pop = os.path.join(path_pop, filename)
 
     print('Read df_uniques.csv')
     df_uniques = pd.read_csv(os.path.join(DATA_PROCESSED, 'df_uniques.csv'))
@@ -324,27 +429,38 @@ if __name__ == '__main__':
     df_combined = pd.read_csv(os.path.join(DATA_PROCESSED, 'df_combined.csv'))
 
     print('Querying nightlight data')
-    df_combined = query_nightlight_data(filepath_nl, df_uniques,
-        df_combined, os.path.join(path_nl, str(year)))
+    df_combined, shapes = query_nightlight_data(filepath_nl, filepath_pop,
+        df_uniques, df_combined, os.path.join(path_nl, str(year)))
 
     print('Creating clusters')
     clust_averages = create_clusters(df_combined)
 
-    # print('Remove extreme values')
-    # clust_averages = clust_averages.drop(clust_averages[clust_averages.cons > 50].index)
+    print('Remove extreme values')
+    clust_averages = clust_averages.drop(clust_averages[clust_averages.cons > 2000].index)
 
     print('Getting coefficient value')
-    nl_coefficient_urban = get_r2_numpy_corrcoef(clust_averages, 'Urban')
-    nl_coefficient_rural = get_r2_numpy_corrcoef(clust_averages, 'Rural')
+    coefficients = get_coefficients(clust_averages)
 
     print('Predict consumption using nightlights')
-    urban = clust_averages.loc[clust_averages['urban'] == 'Urban']
-    urban['cons_pred'] = urban['nightlights'] * (1 + nl_coefficient_urban)
+    urban = clust_averages.loc[clust_averages['urban'] == 'urban']
+    urban['cons_pred_1km'] = urban['luminosity_sum_1km'] * (1 + coefficients['urban_1km'])
 
-    rural = clust_averages.loc[clust_averages['urban'] == 'Rural']
-    rural['cons_pred'] = rural['nightlights'] * (1 + nl_coefficient_rural)
+    rural = clust_averages.loc[clust_averages['urban'] == 'rural']
+    rural['cons_pred_1km'] = rural['luminosity_sum_1km'] * (1 + coefficients['rural_1km'])
 
-    clust_averages = [urban, rural]
+    clust_averages_1km = [urban, rural]
+    clust_averages_1km = pd.concat(clust_averages_1km)
+
+    urban = clust_averages.loc[clust_averages['urban'] == 'urban']
+    urban['cons_pred_10km'] = urban['luminosity_sum_10km'] * (1 + coefficients['urban_10km'])
+
+    rural = clust_averages.loc[clust_averages['urban'] == 'rural']
+    rural['cons_pred_10km'] = rural['luminosity_sum_10km'] * (1 + coefficients['rural_10km'])
+
+    clust_averages_10km = [urban, rural]
+    clust_averages_10km = pd.concat(clust_averages_10km)
+
+    clust_averages = [clust_averages_1km, clust_averages_10km]
     clust_averages = pd.concat(clust_averages)
 
     print('Writing all other data')
@@ -352,7 +468,7 @@ if __name__ == '__main__':
         'lsms-cluster-2016.csv'), index=False)
 
     print('Loading grid')
-    path = os.path.join(DATA_PROCESSED, 'grid.shp')
+    path = os.path.join(DATA_PROCESSED, 'grid_test.shp')
     grid = load_grid(path)
 
     print('Defining land cover data path')
@@ -361,16 +477,17 @@ if __name__ == '__main__':
     filename = 'MCD12Q1.006_LC_Type1_doy2016001_aid0001.tif'
     filepath_lc = os.path.join(path_lc,filename)
 
-    print('Defining world pop data path')
-    folder_name = 'world_pop'
-    path_pop = os.path.join(DATA_RAW, folder_name)
-    filename = 'ppp_2020_1km_Aggregated.tif'
-    filepath_pop = os.path.join(path_pop, filename)
-
     print('Querying nightlights using grid')
-    grid = query_data(grid, filepath_nl, filepath_lc, filepath_pop,
-        nl_coefficient_urban, nl_coefficient_rural)
+    grid, csv_data = query_data(grid, filepath_nl, filepath_lc, filepath_pop,
+        coefficients)
 
     print('Writing outputs to results folder')
     path_results = os.path.join(BASE_PATH, '..', 'results')
+    csv_writer(csv_data, path_results, 'results.csv')
     write_shapefile(grid, path_results, 'results.shp', 'epsg:4326')
+
+    write_shapefile(shapes, path_results, 'buffer_boxes.shp', 'epsg:4326')
+
+    coeffs_to_write = []
+    coeffs_to_write.append(coefficients)
+    csv_writer(coeffs_to_write, path_results, 'coefficients.csv')
