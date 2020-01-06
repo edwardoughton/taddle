@@ -25,13 +25,13 @@ def generate_grid(country):
     filename = 'national_outline_{}.shp'.format(country)
     country_outline = gpd.read_file(os.path.join(DATA_PROCESSED, filename))
 
-    country_outline.crs = {'init' :'epsg:4326'}
-    country_outline = country_outline.to_crs({'init': 'epsg:3857'})
+    country_outline.crs = {'init':'epsg:4326'}
+    country_outline = country_outline.to_crs({'init':'epsg:3857'})
 
     xmin,ymin,xmax,ymax = country_outline.total_bounds
 
-    length = 1e3 #1000
-    wide = 1e3 #1000
+    length = 1e4 #1000
+    wide = 1e4 #1000
 
     cols = list(range(int(np.floor(xmin)), int(np.ceil(xmax)), int(wide)))
     rows = list(range(int(np.floor(ymin)), int(np.ceil(ymax)), int(length)))
