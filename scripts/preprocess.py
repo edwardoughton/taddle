@@ -10,6 +10,10 @@ import os
 import configparser
 import pandas as pd
 import geopandas
+import rasterio
+from rasterio.mask import mask
+import json
+from fiona.crs import from_epsg
 
 from shapely.geometry import MultiPolygon, Polygon, mapping, box
 
@@ -54,9 +58,9 @@ def process_country_shapes(country):
             single_country.to_file(path_processed, driver='ESRI Shapefile')
 
     else:
-        countries = geopandas.read_file(path_processed)
+        single_country = geopandas.read_file(path_processed)
 
-    return print('Completed processing of country shapes')
+    return single_country
 
 
 def process_regions(country, gadm_level):
@@ -162,6 +166,38 @@ def exclude_small_shapes(x,regionalized=False):
         return MultiPolygon(new_geom)
 
 
+def process_settlement_layer(single_country):
+    """
+    """
+    path_settlements = os.path.join(DATA_RAW, 'world_pop','ppp_2020_1km_Aggregated.tif')
+
+    settlements = rasterio.open(path_settlements)
+
+    geo = geopandas.GeoDataFrame()
+
+    geo = geopandas.GeoDataFrame({'geometry': single_country['geometry']}, index=[0], crs=from_epsg('4326'))
+
+    coords = [json.loads(geo.to_json())['features'][0]['geometry']]
+
+    #chop on coords
+    out_img, out_transform = mask(settlements, coords, crop=True)
+
+    # Copy the metadata
+    out_meta = settlements.meta.copy()
+
+    out_meta.update({"driver": "GTiff",
+                    "height": out_img.shape[1],
+                    "width": out_img.shape[2],
+                    "transform": out_transform,
+                    "crs": 'epsg:4326'})
+
+    shape_path = os.path.join(DATA_PROCESSED, 'world_pop.tif')
+    with rasterio.open(shape_path, "w", **out_meta) as dest:
+            dest.write(out_img)
+
+    return print('Completed processing of settlement layer')
+
+
 def process_wb_survey_data(path):
     """
     This function takes the World Bank Living Standards Measurement
@@ -256,10 +292,13 @@ if __name__ == '__main__':
     gadm_level = 3
 
     print('Processing national shapes')
-    process_country_shapes(country)
+    single_country = process_country_shapes(country)
 
     print('Processing subnational shapes')
     process_regions(country, gadm_level)
+
+    print('Process settlement layer')
+    process_settlement_layer(single_country)
 
     print('Processing World Bank Living Standards Measurement Survey')
     path = os.path.join(DATA_RAW, 'lsms', 'malawi_2016')
