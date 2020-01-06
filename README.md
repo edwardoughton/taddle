@@ -28,9 +28,9 @@ Activate it (run each time you switch projects)::
 
     activate arpu_predictor
 
-First, install required packages including `pandas` and `requests`:
+First, install required packages including `pandas`,  `requests` and `rasterstats`:
 
-    conda install pandas requests
+    conda install pandas requests rasterstats
 
 Conda does not have `geoio`, so also:
 
@@ -54,3 +54,14 @@ Contributors
 ============
 - Edward J. Oughton (University of Oxford) (Primary Investigator)
 - Jatin Mathur (University of Illinois)
+
+Quick Start
+===========
+- download:
+    - gadm data
+    - lsms data
+    - noaa nightlight data
+    - worldpop
+- run preprocess.py
+- run grid.py
+- run arpu_predictor.py
