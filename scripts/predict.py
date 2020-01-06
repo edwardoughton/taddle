@@ -140,7 +140,7 @@ def create_clusters(df_combined):
     return clust_averages
 
 
-def get_r2_numpy_corrcoef(x, y):
+def get_r2_numpy_corrcoef(df, subset_value):
     """
     Calculate correlation coefficient using np.corrcoef.
 
@@ -152,6 +152,10 @@ def get_r2_numpy_corrcoef(x, y):
         Array of numeric values.
 
     """
+    subset = df.loc[df['urban'] == subset_value]
+    x = subset.cons
+    y = subset.nightlights
+
     return np.corrcoef(x, y)[0, 1]**2
 
 
@@ -169,7 +173,7 @@ def load_grid(path):
     return grid
 
 
-def query_data(grid, filepath, nl_coefficient):
+def query_data(grid, filepath_nl, filepath_lc, nl_coefficient_urban, nl_coefficient_rural):
     """
     Query raster layer for each shape in grid.
 
@@ -178,25 +182,56 @@ def query_data(grid, filepath, nl_coefficient):
 
     for grid_area in grid:
 
+        #query
         geom = shape(grid_area['geometry'])
-        stats = zonal_stats(geom, filepath, stats="mean sum")
+
+        landcover = zonal_stats(geom.centroid, filepath_lc, stats="sum")[0]['sum']
+
+        if landcover == 13:
+            urban = 1
+        else:
+            urban = 0
+
+        stats = zonal_stats(geom, filepath_nl, stats="mean sum")
 
         try:
-            if float(stats[0]['mean']) > 0:
-                pred_consumption = float(stats[0]['mean']) * (1 + float(nl_coefficient))
+            if float(stats[0]['sum']) > 0:
+                if urban == 1:
+                    pred_consumption = float(stats[0]['sum']) * (1 + float(nl_coefficient_urban))
+                else:
+                    pred_consumption = float(stats[0]['sum']) * (1 + float(nl_coefficient_rural))
             else:
                 pred_consumption = 0
         except:
             pred_consumption = 0
+
+        try:
+            if float(stats[0]['mean']) > 0:
+                luminosity_mean = stats[0]['mean']
+            else:
+                luminosity_mean = 0
+        except:
+            luminosity_mean = 0
+
+        try:
+            if float(stats[0]['sum']) > 0:
+                luminosity_sum = stats[0]['sum']
+            else:
+                luminosity_sum = 0
+        except:
+            luminosity_sum = 0
+
 
         output.append({
             'type': grid_area['type'],
             'geometry': mapping(geom),
             'id': grid_area['id'],
             'properties': {
-                'luminosity_mean': stats[0]['mean'],
-                'luminosity_sum': stats[0]['sum'],
+                'luminosity_mean': luminosity_mean,
+                'luminosity_sum': luminosity_sum,
                 'pred_consumption': pred_consumption,
+                'landcover': landcover,
+                'urban': urban,
             }
         })
 
@@ -238,9 +273,9 @@ if __name__ == '__main__':
 
     year = 2013
     folder_name = 'noaa_dmsp_ols_nightlight_data'
-    path_nightlights = os.path.join(DATA_RAW, folder_name)
+    path_nl = os.path.join(DATA_RAW, folder_name)
     filename = 'F182013.v4c_web.stable_lights.avg_vis.tif'
-    filepath = os.path.join(path_nightlights, str(year), filename)
+    filepath_nl = os.path.join(path_nl, str(year), filename)
 
     print('Read df_uniques.csv')
     df_uniques = pd.read_csv(os.path.join(DATA_PROCESSED, 'df_uniques.csv'))
@@ -249,8 +284,8 @@ if __name__ == '__main__':
     df_combined = pd.read_csv(os.path.join(DATA_PROCESSED, 'df_combined.csv'))
 
     print('Querying nightlight data')
-    df_combined = query_nightlight_data(filepath, df_uniques,
-        df_combined, os.path.join(path_nightlights, str(year)))
+    df_combined = query_nightlight_data(filepath_nl, df_uniques,
+        df_combined, os.path.join(path_nl, str(year)))
 
     print('Creating clusters')
     clust_averages = create_clusters(df_combined)
@@ -259,21 +294,35 @@ if __name__ == '__main__':
     clust_averages = clust_averages.drop(clust_averages[clust_averages.cons > 50].index)
 
     print('Getting coefficient value')
-    nl_coefficient = get_r2_numpy_corrcoef(clust_averages.cons, clust_averages.nightlights)
+    nl_coefficient_urban = get_r2_numpy_corrcoef(clust_averages, 'Urban')
+    nl_coefficient_rural = get_r2_numpy_corrcoef(clust_averages, 'Rural')
 
     print('Predict consumption using nightlights')
-    clust_averages['cons_pred'] = clust_averages['nightlights'] * (1 + nl_coefficient)
+    urban = clust_averages.loc[clust_averages['urban'] == 'Urban']
+    urban['cons_pred'] = urban['nightlights'] * (1 + nl_coefficient_urban)
+
+    rural = clust_averages.loc[clust_averages['urban'] == 'Rural']
+    rural['cons_pred'] = rural['nightlights'] * (1 + nl_coefficient_rural)
+
+    clust_averages = [urban, rural]
+    clust_averages = pd.concat(clust_averages)
 
     print('Writing all other data')
     clust_averages.to_csv(os.path.join(DATA_PROCESSED,
         'lsms-cluster-2016.csv'), index=False)
 
     print('Loading grid')
-    path = os.path.join(DATA_PROCESSED, 'grid.shp')
+    path = os.path.join(DATA_PROCESSED, 'grid_test.shp')
     grid = load_grid(path)
 
     print('Querying nightlights using grid')
-    grid = query_data(grid, filepath, nl_coefficient)
+
+    folder_name = 'modis_landcover'
+    path_lc = os.path.join(DATA_RAW, folder_name)
+    filename = 'MCD12Q1.006_LC_Type1_doy2016001_aid0001.tif'
+    filepath_lc = os.path.join(path_lc,filename)
+
+    grid = query_data(grid, filepath_nl, filepath_lc, nl_coefficient_urban, nl_coefficient_rural)
 
     print('Writing outputs to results folder')
     path_results = os.path.join(BASE_PATH, '..', 'results')

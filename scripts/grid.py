@@ -30,8 +30,8 @@ def generate_grid(country):
 
     xmin,ymin,xmax,ymax = country_outline.total_bounds
 
-    length = 1e4#1000
-    wide = 1e4#1000
+    length = 1e3 #1000
+    wide = 1e3 #1000
 
     cols = list(range(int(np.floor(xmin)), int(np.ceil(xmax)), int(wide)))
     rows = list(range(int(np.floor(ymin)), int(np.ceil(ymax)), int(length)))
@@ -40,7 +40,7 @@ def generate_grid(country):
     polygons = []
     for x in cols:
         for y in rows:
-            polygons.append( Polygon([(x,y), (x+wide, y), (x+wide, y-length), (x, y-length)]) )
+            polygons.append( Polygon([(x,y), (x+wide, y), (x+wide, y-length), (x, y-length)]))
 
     grid = gpd.GeoDataFrame({'geometry':polygons})
     intersection = gpd.overlay(grid, country_outline, how='intersection')
