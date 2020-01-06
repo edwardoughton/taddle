@@ -11,7 +11,7 @@ import configparser
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-import contextily as ctx
+# import contextily as ctx
 import geopandas as gpd
 
 CONFIG = configparser.ConfigParser()
@@ -21,9 +21,8 @@ BASE_PATH = CONFIG['file_locations']['base_path']
 DATA_RAW = os.path.join(BASE_PATH, 'raw')
 DATA_PROCESSED = os.path.join(BASE_PATH, 'processed')
 
-def create_panel_plot():
+def create_scatterplot():
 
-    print('Writing all other data')
     clust_averages = pd.read_csv(os.path.join(DATA_PROCESSED,
         'lsms-cluster-2016.csv'))
 
@@ -48,9 +47,45 @@ def create_panel_plot():
     ax2.legend(handles=reversed(handles[1:3]), labels=reversed(labels[1:3]))
 
     fig.tight_layout()
-    fig.savefig(os.path.join(BASE_PATH, '..', 'vis','figures','panel_plot.png'))
+    fig.savefig(os.path.join(BASE_PATH, '..', 'vis','figures','scatterplot.png'))
 
-    return print('Completed panel plot')
+    return print('Completed scatterplot')
+
+
+def create_regplot():
+
+    clust_averages = pd.read_csv(os.path.join(DATA_PROCESSED,
+        'lsms-cluster-2016.csv'))
+
+    to_plot = clust_averages[["nightlights", "cons", "cons_pred", "urban"]]
+
+    urban = to_plot.loc[to_plot['urban'] == 'Urban']
+    rural = to_plot.loc[to_plot['urban'] == 'Rural']
+
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12,8))
+
+    g = sns.regplot(x="nightlights", y="cons", data=urban, ax=ax1)
+    g.set(xlabel='Luminosity (DN)', ylabel='Urban HH Consumption ($ per day)',
+        title='Urban Consumption \n vs Luminosity')
+
+    g = sns.regplot(x="nightlights", y="cons", data=rural, ax=ax2)
+    g.set(xlabel='Luminosity (DN)', ylabel='Rural HH Consumption ($ per day)',
+        title='Rural Consumption \n vs Luminosity')
+
+    g = sns.regplot(x="cons_pred", y="cons", data=urban, ax=ax3)
+    g.set(xlabel='Predicted Consumption ($ per day)',
+        ylabel='Urban HH Consumption ($ per day)',
+        title='Urban Consumption \n vs Predicted Consumption')
+
+    g = sns.regplot(x="cons_pred", y="cons", data=rural, ax=ax4)
+    g.set(xlabel='Predicted Consumption ($ per day)',
+        ylabel='Rural HH Consumption ($ per day)',
+        title='Rural Consumption \n vs Predicted Consumption')
+
+    fig.tight_layout()
+    fig.savefig(os.path.join(BASE_PATH, '..', 'vis','figures','regplot.png'))
+
+    return print('Completed regplot')
 
 
 def plot_map(metric, legend_label, title, hour, roads, flow_min, flow_max, sites,
@@ -92,4 +127,6 @@ def plot_map(metric, legend_label, title, hour, roads, flow_min, flow_max, sites
 
 if __name__ == '__main__':
 
-    create_panel_plot()
+    create_scatterplot()
+
+    create_regplot()
