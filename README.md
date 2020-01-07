@@ -10,7 +10,7 @@ availability.
 Setup and configuration
 =======================
 
-All code for **taddle** is written in Python (Python>=3.5) and has a number of dependencies.
+All code for **taddle** is written in Python (Python>=3.6) and has a number of dependencies.
 See `requirements.txt` for a full list.
 
 Using conda
@@ -22,7 +22,7 @@ along with the `conda-forge` channel which has a host of pre-built libraries and
 
 Create a conda environment called `taddle`:
 
-    conda create --name taddle python=3.5
+    conda create --name taddle python=3.6 gdal
 
 Activate it (run each time you switch projects)::
 
