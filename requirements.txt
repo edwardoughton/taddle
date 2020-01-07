@@ -1,0 +1,14 @@
+configparser
+pandas
+numpy
+geopandas
+shapely
+pyproj
+tqdm
+requests
+rasterstats
+rasterio
+fiona
+matplotlib
+seaborn
+contextily
