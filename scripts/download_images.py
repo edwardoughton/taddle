@@ -79,9 +79,12 @@ def download_images(df):
 
     # only download unique images
     df = df.dropna(subset=['image_lat', 'image_lon', 'image_name']).drop_duplicates(subset=['image_lat', 'image_lon'])
-    # this sees what is already downloaded and drops it
+    # drops what is already downloaded
     already_downloaded = os.listdir(IMAGE_DIR)
+    print('Already downloaded ' + str(len(already_downloaded)))
     df = df.set_index('image_name').drop(already_downloaded).reset_index()
+    print('Need to download ' + str(len(df)))
+    return
 
     for _, r in tqdm(df.iterrows(), total=df.shape[0]):
         lat = r.image_lat

@@ -6,6 +6,10 @@
 *.dta
 .vscode
 api_key.txt
+*.pt
+*.pth
+*.joblib
+*.pkl
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
