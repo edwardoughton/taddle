@@ -4,8 +4,8 @@
 *.csv
 *.tif
 *.dta
-
 .vscode
+api_key.txt
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
