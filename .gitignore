@@ -132,6 +132,7 @@ dmypy.json
 data/*
 results/*
 vis/figures*
+images/*
 scripts/script_config.ini
 cache
 *.zip

@@ -11,7 +11,6 @@ import configparser
 import pandas as pd
 import numpy as np
 import glob
-import geoio
 import math
 import geopandas as gpd
 import fiona
