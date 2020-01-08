@@ -32,6 +32,14 @@ First, install required packages including `pandas`,  `requests` and `rasterstat
 
     conda install pandas requests rasterstats
 
+To train the model you will need to install pytorch and torchvision:
+
+    conda install pytorch torchvision
+
+If you have a pillow error, try:
+
+    conda install pillow=6.1
+
 To visualize the results, install `matplotlib` and `seaborn`:
 
     conda install matplotlib seaborn
