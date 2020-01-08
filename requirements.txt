@@ -12,3 +12,7 @@ fiona
 matplotlib
 seaborn
 contextily
+
+pytorch
+torchvision
+pillow=6.1
