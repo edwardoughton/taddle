@@ -1,0 +1,3 @@
+[submodule "jatin/predicting-poverty-replication"]
+	path = jatin/predicting-poverty-replication
+	url = https://github.com/jmather625/predicting-poverty-replication
