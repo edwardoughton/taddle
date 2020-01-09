@@ -1,5 +1,6 @@
 import os
 import configparser
+import math
 import pandas as pd
 import numpy as np
 import random
@@ -25,24 +26,44 @@ with open(CONFIG['DEFAULT']['ACCESS_TOKEN_DIR'], 'r') as f:
 def create_folders():
     os.makedirs(IMAGE_DIR, exist_ok=True)
 
-def get_polygon_download_locations(polygon, number=20, seed=7):
+def get_polygon_download_locations(polygon, number, seed=7):
     """
-        Samples 20 points from a polygon
+        Samples NUMBER points evenly but randomly from a polygon
+        Seed is set to 7 for reproducibility
+
+        At first tries to create sub-grid of size n x n where n = sqrt(number)
+        It checks these coordinates and if they are in the polygon it uses them
+
+        If the number of points found is still less than the number, I sample randomly
+        from the polygon until I have the required number
     """
     random.seed(seed)
 
-    points = []
     min_x, min_y, max_x, max_y = polygon.bounds
-    i = 0
-    while i < number:
+    edge_num = math.floor(math.sqrt(number))
+    lats = np.linspace(min_y, max_y, edge_num)
+    lons = np.linspace(min_x, max_x, edge_num)
+    # performs cartesian product
+    evenly_spaced_points = np.transpose([np.tile(lats, len(lons)), np.repeat(lons, len(lats))])
+    assert len(evenly_spaced_points) <= number
+
+    # tries using evenly spaced points
+    points = []
+    for proposed_lat, proposed_lon in evenly_spaced_points:
+        point = Point(proposed_lon, proposed_lat)
+        if polygon.contains(point):
+            points.append([proposed_lat, proposed_lon])
+
+    # fills the remainder with random points
+    while len(points) < number:
         point = Point(random.uniform(min_x, max_x), random.uniform(min_y, max_y))
         if polygon.contains(point):
             points.append([point.y, point.x])
-            i += 1
+
     return points  # returns list of lat/lon pairs
 
 
-def generate_country_download_locations(country, num_per_grid=20):
+def generate_country_download_locations(country, num_per_grid=100):
     grid = gpd.read_file(os.path.join(GRID_DIR, 'grid.shp'))
     lat_lon_pairs = grid['geometry'].apply(lambda polygon: get_polygon_download_locations(polygon, number=num_per_grid))
     centroids = grid['geometry'].centroid
