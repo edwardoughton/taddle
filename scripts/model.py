@@ -12,6 +12,10 @@ from tqdm import tqdm
 import joblib
 import logging
 import warnings
+import sys
+sys.path.append('.')
+from models import RidgeEnsemble
+
 warnings.filterwarnings('ignore')
 
 CONFIG = configparser.ConfigParser()
@@ -53,9 +57,9 @@ class ModelPipeline:
         print('loading CNN...')
         self.cnn = torch.load(CNN_DIR, map_location=DEVICE).eval()
         print('loading Ridge Regression models...')
-        self.ridge_phone_density = joblib.load(RIDGE_PHONE_DENSITY_DIR)
-        self.ridge_phone_consumption = joblib.load(RIDGE_PHONE_CONSUMPTION_DIR)
-        self.ridge_consumption = joblib.load(RIDGE_CONSUMPTION_DIR)
+        self.ridge_phone_density = pickle.load(open(RIDGE_PHONE_DENSITY_DIR, 'rb'))
+        self.ridge_phone_consumption = pickle.load(open(RIDGE_PHONE_CONSUMPTION_DIR, 'rb'))
+        self.ridge_consumption = pickle.load(open(RIDGE_CONSUMPTION_DIR, 'rb'))
         self.scaler = joblib.load(SCALER_DIR)
 
     def run_pipeline(self, metric):
@@ -72,30 +76,26 @@ class ModelPipeline:
 
         print('Clustering the extracted features using the reference dataframe...')
         clusters, clustered_features = self.cluster_features(df, images, features, cluster_keys=['centroid_lat', 'centroid_lon'], image_key='image_name')
-        clustered_features = self.scaler.transform(clustered_features)
+        # clustered_features = self.scaler.transform(clustered_features)
 
         print('Generating predictions usign Ridge Regression model for given metric...')
         predictions = None
         SAVE_DIR = None
         if metric == 'phone_density':
             predictions = self.predict_phone_density(clustered_features)
-            predictions = np.squeeze(predictions)
             SAVE_DIR = RIDGE_PHONE_DENSITY_SAVE_DIR
 
         elif metric == 'phone_consumption':
             predictions = self.predict_phone_consumption(clustered_features)
-            predictions = np.squeeze(predictions)
             SAVE_DIR = RIDGE_PHONE_CONSUMPTION_SAVE_DIR
 
         elif metric == 'consumption':
             predictions = self.predict_consumption(clustered_features)
-            predictions = np.squeeze(predictions)
             SAVE_DIR = RIDGE_CONSUMPTION_SAVE_DIR
 
         assert predictions is not None and SAVE_DIR is not None
 
         print('Saving predictions to ' + os.path.join(SAVE_DIR, 'predictions.csv'))
-        predictions = np.squeeze(predictions)
         columns = ['centroid_lat', 'centroid_lon', f'predicted_{metric}']
         with open(os.path.join(SAVE_DIR, 'predictions.csv'), 'w') as f:
             f.write(','.join(columns) + '\n')
