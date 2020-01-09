@@ -22,6 +22,9 @@ SHAPEFILE_DIR = CONFIG['DEFAULT']['SHAPEFILE_DIR']
 GRID_DIR = CONFIG['DEFAULT']['GRID_DIR']
 IMAGE_DIR = CONFIG['DEFAULT']['IMAGE_DIR']
 
+def create_folders():
+    os.makedirs(GRID_DIR, exist_ok=True)
+
 def generate_grid(country):
 
     filename = 'national_outline_{}.shp'.format(country)
@@ -55,4 +58,5 @@ def generate_grid(country):
 
 
 if __name__ == '__main__':
+    create_folders()
     generate_grid(COUNTRY)

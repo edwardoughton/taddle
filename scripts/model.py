@@ -5,6 +5,7 @@ from torchvision import transforms
 import pandas as pd
 import numpy as np
 import os
+import pickle
 from PIL import Image
 import matplotlib.pyplot as plt
 from tqdm import tqdm
@@ -22,6 +23,7 @@ CNN_DIR = CONFIG['MODELS']['CNN_DIR']
 RIDGE_PHONE_DENSITY_DIR = CONFIG['MODELS']['RIDGE_PHONE_DENSITY_DIR']
 RIDGE_PHONE_CONSUMPTION_DIR = CONFIG['MODELS']['RIDGE_PHONE_CONSUMPTION_DIR']
 RIDGE_CONSUMPTION_DIR = CONFIG['MODELS']['RIDGE_CONSUMPTION_DIR']
+SCALER_DIR = CONFIG['MODELS']['SCALER_DIR']
 
 CNN_FEATURE_SAVE_DIR = CONFIG['RESULTS']['CNN_FEATURE_SAVE_DIR']
 RIDGE_PHONE_DENSITY_SAVE_DIR = CONFIG['RESULTS']['RIDGE_PHONE_DENSITY_SAVE_DIR']
@@ -29,6 +31,12 @@ RIDGE_PHONE_CONSUMPTION_SAVE_DIR = CONFIG['RESULTS']['RIDGE_PHONE_CONSUMPTION_SA
 RIDGE_CONSUMPTION_SAVE_DIR = CONFIG['RESULTS']['RIDGE_CONSUMPTION_SAVE_DIR']
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+def create_folders():
+    os.makedirs(CNN_FEATURE_SAVE_DIR, exist_ok=True)
+    os.makedirs(RIDGE_PHONE_DENSITY_SAVE_DIR, exist_ok=True)
+    os.makedirs(RIDGE_PHONE_CONSUMPTION_SAVE_DIR, exist_ok=True)
+    os.makedirs(RIDGE_CONSUMPTION_SAVE_DIR, exist_ok=True)
 
 def filename_to_im_tensor(file):
     transformer = transforms.Compose([
@@ -48,6 +56,7 @@ class ModelPipeline:
         self.ridge_phone_density = joblib.load(RIDGE_PHONE_DENSITY_DIR)
         self.ridge_phone_consumption = joblib.load(RIDGE_PHONE_CONSUMPTION_DIR)
         self.ridge_consumption = joblib.load(RIDGE_CONSUMPTION_DIR)
+        self.scaler = joblib.load(SCALER_DIR)
 
     def run_pipeline(self, metric):
         assert metric in ['phone_density', 'phone_consumption', 'consumption']
@@ -58,13 +67,14 @@ class ModelPipeline:
             logging.error('Make sure there is a file called image_download_locs.csv in ' + GRID_DIR, exc_info=True)
             exit(1)
         
-        print('Extracting features using ' + IMAGE_DIR + ' as the image directory')
+        print('Extracting features using ' + IMAGE_DIR + ' as the image directory...')
         images, features = self.extract_features()
 
-        print('Clustering the extracted features using the reference dataframe')
+        print('Clustering the extracted features using the reference dataframe...')
         clusters, clustered_features = self.cluster_features(df, images, features, cluster_keys=['centroid_lat', 'centroid_lon'], image_key='image_name')
+        clustered_features = self.scaler.transform(clustered_features)
 
-        print('Generating predictions usign Ridge Regression model for given metric')
+        print('Generating predictions usign Ridge Regression model for given metric...')
         predictions = None
         SAVE_DIR = None
         if metric == 'phone_density':
@@ -75,7 +85,7 @@ class ModelPipeline:
         elif metric == 'phone_consumption':
             predictions = self.predict_phone_consumption(clustered_features)
             predictions = np.squeeze(predictions)
-            SAVE_DIR = PHONE_CONSUMPTION_SAVE_DIR
+            SAVE_DIR = RIDGE_PHONE_CONSUMPTION_SAVE_DIR
 
         elif metric == 'consumption':
             predictions = self.predict_consumption(clustered_features)
@@ -86,10 +96,12 @@ class ModelPipeline:
 
         print('Saving predictions to ' + os.path.join(SAVE_DIR, 'predictions.csv'))
         predictions = np.squeeze(predictions)
+        columns = ['centroid_lat', 'centroid_lon', f'predicted_{metric}']
         with open(os.path.join(SAVE_DIR, 'predictions.csv'), 'w') as f:
-                for (centroid_lat, centroid_lon), pred in zip(clusters, predictions):
-                    to_write = [str(centroid_lat), str(centroid_lon), str(pred)]
-                    f.write(','.join(to_write) + '\n')
+            f.write(','.join(columns) + '\n')
+            for (centroid_lat, centroid_lon), pred in zip(clusters, predictions):
+                to_write = [str(centroid_lat), str(centroid_lon), str(pred)]
+                f.write(','.join(to_write) + '\n')
 
 
     def predict_nightlights(self):
@@ -100,7 +112,11 @@ class ModelPipeline:
         """
         SAVE_NAME = 'forward_classifications.npy'
         if SAVE_NAME in os.listdir(CNN_FEATURE_SAVE_DIR):
-            return np.load(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME))
+            print('Loading saved classifications...')
+            ims = None
+            with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'image_names_classification.pkl'), 'rb') as f:
+                ims = pickle.load(f)
+            return ims, np.load(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME))
 
         ims = os.listdir(IMAGE_DIR)
         path = os.path.join(IMAGE_DIR, '{}')
@@ -127,17 +143,24 @@ class ModelPipeline:
             pbar.update(rem)
 
         np.save(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME), predictions)
+        with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'image_names_classification.pkl'), 'wb') as f:
+            pickle.dump(ims, f)
         return ims, predictions
 
     def extract_features(self):
         """
             Obtains feature vectors for all the images.
+            Saves results to disk for safekeeping as this can be a long step.
             
             Return: two items of equal length, one being the list of images and the other an array of shape (len(images), 4096)
         """
         SAVE_NAME = 'forward_features.npy'
         if SAVE_NAME in os.listdir(CNN_FEATURE_SAVE_DIR):
-            return np.load(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME))
+            print('Loading saved features...')
+            ims = None
+            with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'image_names_feature_extraction.pkl'), 'rb') as f:
+                ims = pickle.load(f)
+            return ims, np.load(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME))
 
         # we "rip" off the final layers so we can extract the 4096-size feature vector
         # this layer is the 4th on the classifier half of the CNN
@@ -171,6 +194,8 @@ class ModelPipeline:
 
         self.cnn.classifier = original
         np.save(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME), features)
+        with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'image_names_feature_extraction.pkl'), 'wb') as f:
+            pickle.dump(ims, f)
         return ims, features
 
     def cluster_features(self, df, images, features, cluster_keys, image_key):
@@ -190,20 +215,18 @@ class ModelPipeline:
         if type(cluster_keys) is not list:
             cluster_keys = [cluster_keys]
 
-        df_lookup = pd.Dataframe.from_dict({image_key: images, 'feature_index': [i for i in range(len(images))]})
+        df_lookup = pd.DataFrame.from_dict({image_key: images, 'feature_index': [i for i in range(len(images))]})
         prev_shape = len(df)
         df = pd.merge(df, df_lookup, on=image_key, how='left')
         assert prev_shape == len(df)
 
-        num_unique = len(pd.unique(df[cluster_keys]))
-        clustered_feats = np.zeros((num_unique, 4096))
-        clusters = []
-
         groups = df.groupby(cluster_keys)
+        clustered_feats = np.zeros((len(groups), 4096))
+        clusters = []
         for i, (cluster, data) in enumerate(groups):
             cluster_feats = np.zeros((len(data), 4096))
-            for j, d in data.iterrows():
-                cluster_feats[j,:] = features[d.feature_index]
+            for j, (_, d) in enumerate(data.iterrows()):
+                cluster_feats[j,:] = features[d.feature_index,:]
             # averages the features across all images in the cluster
             cluster_feats = cluster_feats.mean(axis=0)
             clustered_feats[i,:] = cluster_feats
@@ -214,7 +237,7 @@ class ModelPipeline:
     def predict_phone_density(self, clustered_feats):
         return self.ridge_phone_density.predict(clustered_feats)
 
-    def prediction_phone_consumption(self, clustered_feats):
+    def predict_phone_consumption(self, clustered_feats):
         return self.ridge_phone_consumption.predict(clustered_feats)
 
     def predict_consumption(self, clustered_feats):
@@ -223,5 +246,6 @@ class ModelPipeline:
 
 
 if __name__ == '__main__':
+    create_folders()
     mp = ModelPipeline()
-    mp.run_pipeline(metric='phone_consumption')
+    mp.run_pipeline(metric='phone_density')

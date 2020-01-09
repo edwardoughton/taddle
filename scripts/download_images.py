@@ -22,6 +22,8 @@ ACCESS_TOKEN = None
 with open(CONFIG['DEFAULT']['ACCESS_TOKEN_DIR'], 'r') as f:
     ACCESS_TOKEN = f.readlines()[0]
 
+def create_folders():
+    os.makedirs(IMAGE_DIR, exist_ok=True)
 
 def get_polygon_download_locations(polygon, number=20, seed=7):
     """
@@ -102,6 +104,8 @@ def download_images(df):
 
 
 if __name__ == '__main__':
+    create_folders()
+    
     print('Generating download locations...')
     df_download = generate_country_download_locations(COUNTRY)
 
