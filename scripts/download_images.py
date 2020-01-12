@@ -7,10 +7,17 @@ import random
 import geopandas as gpd
 from shapely.geometry import Point
 import requests
+import matplotlib.pyplot as plt
 from PIL import Image
 from io import BytesIO
 from tqdm import tqdm
 import logging
+import time
+
+# repo imports
+import sys
+sys.append('.')
+from utils import ImageryDownloader
 
 CONFIG = configparser.ConfigParser()
 CONFIG.read('script_config.ini')
@@ -79,18 +86,6 @@ def generate_country_download_locations(country, num_per_grid=100):
                 f.write(','.join(to_write) + '\n')
 
     print('Generated image download locations and saved at {}'.format(os.path.join(GRID_DIR, 'image_download_locs.csv')))
-    return pd.read_csv(os.path.join(GRID_DIR, 'image_download_locs.csv'))
-
-
-class ImageryDownloader:
-    def __init__(self, access_token):
-        self.access_token = access_token
-        self.url = 'https://maps.googleapis.com/maps/api/staticmap?center={},{}&zoom={}&size=400x400&maptype=satellite&key={}'
-    
-    def download(self, lat, long, zoom):
-        res = requests.get(self.url.format(lat, long, zoom, self.access_token))
-        image = Image.open(BytesIO(res.content))
-        return image
 
 
 def download_images(df):
@@ -99,6 +94,9 @@ def download_images(df):
     """
     imd = ImageryDownloader(ACCESS_TOKEN)
     zoom = 16
+    # BAD_IMAGE_VALUE = 0.8784313797950745
+    NUM_RETRIES = 20
+    WAIT_TIME = 0.1 # seconds
 
     # only download unique images
     df = df.dropna(subset=['image_lat', 'image_lon', 'image_name']).drop_duplicates(subset=['image_lat', 'image_lon'])
@@ -107,7 +105,6 @@ def download_images(df):
     print('Already downloaded ' + str(len(already_downloaded)))
     df = df.set_index('image_name').drop(already_downloaded).reset_index()
     print('Need to download ' + str(len(df)))
-    return
 
     for _, r in tqdm(df.iterrows(), total=df.shape[0]):
         lat = r.image_lat
@@ -115,11 +112,27 @@ def download_images(df):
         name = r.image_name
         try:
             im = imd.download(lat, lon, zoom)
-            # naming convention
-            im.save(os.path.join(IMAGE_DIR, name))
+            if type(im) == str and im == 'RETRY':
+                resolved = False
+                for _ in range(NUM_RETRIES):
+                    time.sleep(WAIT_TIME)
+                    im = imd.download(lat, lon, zoom)
+                    if type(im) == str and im == 'RETRY':
+                        continue
+                    else:
+                        plt.imsave(os.path.join(IMAGE_DIR, name), im)
+                        resolved = True
+                        break
+                if not resolved:
+                    raise ValueError(f'Could not download {lat}, {lon}, {zoom} despite several retries and waiting')
+                else:
+                    pass
+            else:
+                # no issues, save according to naming convention
+                plt.imsave(os.path.join(IMAGE_DIR, name), im)
 
         except Exception as e:
-            logging.error("Error", exc_info=True)
+            logging.error(f"Error-could not download {lat}, {lon}, {zoom}", exc_info=True)
             break
 
 
@@ -127,8 +140,10 @@ def download_images(df):
 if __name__ == '__main__':
     create_folders()
     
-    print('Generating download locations...')
-    df_download = generate_country_download_locations(COUNTRY)
+#     print('Generating download locations...')
+#     generate_country_download_locations(COUNTRY)
+    
+    df_download = pd.read_csv(os.path.join(GRID_DIR, 'image_download_locs.csv'))
 
     print('Downloading images. Might take a while...')
     download_images(df_download)

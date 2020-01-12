@@ -12,11 +12,12 @@ from tqdm import tqdm
 import joblib
 import logging
 import warnings
+warnings.filterwarnings('ignore')
+
+# repo imports
 import sys
 sys.path.append('.')
-from models import RidgeEnsemble
-
-warnings.filterwarnings('ignore')
+from utils import RidgeEnsemble, CustomProgressBar
 
 CONFIG = configparser.ConfigParser()
 CONFIG.read('script_config.ini')
@@ -34,7 +35,8 @@ RIDGE_PHONE_DENSITY_SAVE_DIR = CONFIG['RESULTS']['RIDGE_PHONE_DENSITY_SAVE_DIR']
 RIDGE_PHONE_CONSUMPTION_SAVE_DIR = CONFIG['RESULTS']['RIDGE_PHONE_CONSUMPTION_SAVE_DIR']
 RIDGE_CONSUMPTION_SAVE_DIR = CONFIG['RESULTS']['RIDGE_CONSUMPTION_SAVE_DIR']
 
-DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f'Using {DEVICE} as backend...')
 
 def create_folders():
     os.makedirs(CNN_FEATURE_SAVE_DIR, exist_ok=True)
@@ -42,12 +44,7 @@ def create_folders():
     os.makedirs(RIDGE_PHONE_CONSUMPTION_SAVE_DIR, exist_ok=True)
     os.makedirs(RIDGE_CONSUMPTION_SAVE_DIR, exist_ok=True)
 
-def filename_to_im_tensor(file):
-    transformer = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
-
+def filename_to_im_tensor(file, transformer):
     im = plt.imread(file)[:,:,:3]
     im = transformer(im)
     return im[None].to(DEVICE)
@@ -56,29 +53,42 @@ class ModelPipeline:
     def __init__(self):
         print('loading CNN...')
         self.cnn = torch.load(CNN_DIR, map_location=DEVICE).eval()
+        self.transformer = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
         print('loading Ridge Regression models...')
-        self.ridge_phone_density = pickle.load(open(RIDGE_PHONE_DENSITY_DIR, 'rb'))
-        self.ridge_phone_consumption = pickle.load(open(RIDGE_PHONE_CONSUMPTION_DIR, 'rb'))
-        self.ridge_consumption = pickle.load(open(RIDGE_CONSUMPTION_DIR, 'rb'))
-        self.scaler = joblib.load(SCALER_DIR)
+        self.ridge_phone_density = joblib.load(RIDGE_PHONE_DENSITY_DIR)
+        self.ridge_phone_consumption = joblib.load(RIDGE_PHONE_CONSUMPTION_DIR)
+        self.ridge_consumption = joblib.load(RIDGE_CONSUMPTION_DIR)
 
     def run_pipeline(self, metric):
         assert metric in ['phone_density', 'phone_consumption', 'consumption']
-        print('Reading reference dataframe...')
-        try:
-            df = pd.read_csv(os.path.join(GRID_DIR, 'image_download_locs.csv'))
-        except Exception as e:
-            logging.error('Make sure there is a file called image_download_locs.csv in ' + GRID_DIR, exc_info=True)
-            exit(1)
-        
-        print('Extracting features using ' + IMAGE_DIR + ' as the image directory...')
-        images, features = self.extract_features()
+        print(f'Running prediction pipeline on metric: {metric}')
+        # check to see if clustered feats already exist
+        SAVED_CLUSTER_FEATS_NAME = 'clustered_features.npy'
+        clusters = None
+        clustered_features = None
+        if SAVED_CLUSTER_FEATS_NAME in os.listdir(CNN_FEATURE_SAVE_DIR):
+            print('Loading saved cluster features...')
+            with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'cluster_names.pkl'), 'rb') as f:
+                clusters = pickle.load(f)
+            clustered_features = np.load(os.path.join(CNN_FEATURE_SAVE_DIR, SAVED_CLUSTER_FEATS_NAME))
+        else:
+            print('Reading reference dataframe...')
+            try:
+                df = pd.read_csv(os.path.join(GRID_DIR, 'image_download_locs.csv'))
+            except Exception as e:
+                logging.error('Make sure there is a file called image_download_locs.csv in ' + GRID_DIR, exc_info=True)
+                exit(1)
 
-        print('Clustering the extracted features using the reference dataframe...')
-        clusters, clustered_features = self.cluster_features(df, images, features, cluster_keys=['centroid_lat', 'centroid_lon'], image_key='image_name')
-        # clustered_features = self.scaler.transform(clustered_features)
+            print('Extracting features using ' + IMAGE_DIR + ' as the image directory...')
+            images, features = self.extract_features()
 
-        print('Generating predictions usign Ridge Regression model for given metric...')
+            print('Clustering the extracted features using the reference dataframe...')
+            clusters, clustered_features = self.cluster_features(df, images, features, cluster_keys=['centroid_lat', 'centroid_lon'], image_key='image_name')
+
+        print('Generating predictions using Ridge Regression model for given metric...')
         predictions = None
         SAVE_DIR = None
         if metric == 'phone_density':
@@ -93,7 +103,7 @@ class ModelPipeline:
             predictions = self.predict_consumption(clustered_features)
             SAVE_DIR = RIDGE_CONSUMPTION_SAVE_DIR
 
-        assert predictions is not None and SAVE_DIR is not None
+        assert predictions is not None and SAVE_DIR is not None and len(clusters) == len(predictions)
 
         print('Saving predictions to ' + os.path.join(SAVE_DIR, 'predictions.csv'))
         columns = ['centroid_lat', 'centroid_lon', f'predicted_{metric}']
@@ -124,12 +134,13 @@ class ModelPipeline:
         i = 0
         batch_size = 4
         predictions = np.zeros((len(ims), 3))
-        pbar = tqdm(total=len(ims))
+#         pbar = tqdm(total=len(ims))
+        pbar = CustomProgressBar(len(ims))
 
         # this approach uses batching and should offer a speed-up over passing one image at a time by nearly 10x
         # runtime should be 5-7 minutes vs 45+ for a full forward pass
         while i + batch_size < len(ims):
-            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(ims[i+j])) for j in range(batch_size)], 0)
+            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(ims[i+j]), self.transformer) for j in range(batch_size)], 0)
             predictions[i:i+batch_size,:] = self.cnn(ims_as_tensors).cpu().detach().numpy()
             i += batch_size
             pbar.update(batch_size)
@@ -137,7 +148,7 @@ class ModelPipeline:
         # does the final batch of remaining images
         if len(ims) - i != 0:
             rem = len(ims) - i
-            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(ims[i+j])) for j in range(rem)], 0)
+            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(ims[i+j]), self.transformer) for j in range(rem)], 0)
             predictions[i:i+rem,:] = self.cnn(ims_as_tensors).cpu().detach().numpy()
             i += rem
             pbar.update(rem)
@@ -174,24 +185,28 @@ class ModelPipeline:
         i = 0
         batch_size = 4
         features = np.zeros((len(ims), 4096))
-        pbar = tqdm(total=len(ims))
+#         pbar = tqdm(total=len(ims))
+        pbar = CustomProgressBar(len(ims))
 
         # this approach uses batching and should offer a speed-up over passing one image at a time by nearly 10x
-        # runtime should be 5-7 minutes vs 45+ for a full forward pass
+        # runtime should be 8 minutes per 20k images on GPU
+        print(f'Running forward pass on {len(ims)} images...')
         while i + batch_size < len(ims):
-            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(ims[i+j])) for j in range(batch_size)], 0)
+            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(ims[i+j]), self.transformer) for j in range(batch_size)], 0)
             features[i:i+batch_size,:] = self.cnn(ims_as_tensors).cpu().detach().numpy()
             i += batch_size
-            pbar.update(batch_size)
+            if i % 100 == 0:
+                pbar.update(100)
 
         # does the final batch of remaining images
         if len(ims) - i != 0:
             rem = len(ims) - i
-            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(ims[i+j])) for j in range(rem)], 0)
+            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(ims[i+j]), self.transformer) for j in range(rem)], 0)
             features[i:i+rem,:] = self.cnn(ims_as_tensors).cpu().detach().numpy()
             i += rem
             pbar.update(rem)
-
+        
+        print()
         self.cnn.classifier = original
         np.save(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME), features)
         with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'image_names_feature_extraction.pkl'), 'wb') as f:
@@ -211,27 +226,37 @@ class ModelPipeline:
 
             Returns: two items of equal length, the first being a list of clusters and the second being a cluster-aggregated feature array of shape (NUM_CLUSTERS, 4096)
         """
+        SAVE_NAME = 'clustered_features.npy'
+        if SAVE_NAME in os.listdir(CNN_FEATURE_SAVE_DIR):
+            print('Loading saved features...')
+            clusters = None
+            with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'cluster_names.pkl'), 'rb') as f:
+                clusters = pickle.load(f)
+            return clusters, np.load(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME))
+        
         assert len(images) == len(features)
         if type(cluster_keys) is not list:
             cluster_keys = [cluster_keys]
 
         df_lookup = pd.DataFrame.from_dict({image_key: images, 'feature_index': [i for i in range(len(images))]})
         prev_shape = len(df)
-        df = pd.merge(df, df_lookup, on=image_key, how='left')
-        assert prev_shape == len(df)
+        df = pd.merge(df, df_lookup, on=image_key)
+        assert prev_shape == len(df), print('The reference dataframe lookup did not merge with the images downloaded')
 
-        groups = df.groupby(cluster_keys)
-        clustered_feats = np.zeros((len(groups), 4096))
+        grouped = df.groupby(cluster_keys)
+        clustered_feats = np.zeros((len(grouped), 4096))
         clusters = []
-        for i, (cluster, data) in enumerate(groups):
-            cluster_feats = np.zeros((len(data), 4096))
-            for j, (_, d) in enumerate(data.iterrows()):
-                cluster_feats[j,:] = features[d.feature_index,:]
-            # averages the features across all images in the cluster
-            cluster_feats = cluster_feats.mean(axis=0)
-            clustered_feats[i,:] = cluster_feats
-            clusters.append(cluster)
+        for i, ((clust_lat, clust_lon), group) in enumerate(grouped):
+            group_feats = np.zeros((len(group), 4096))
+            for j, feat_idx in enumerate(group['feature_index']):
+                group_feats[j,:] = features[feat_idx,:]
+            group_feats = group_feats.mean(axis=0)
+            clustered_feats[i,:] = group_feats
+            clusters.append([clust_lat, clust_lon])
         
+        np.save(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME), clustered_feats)
+        with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'cluster_names.pkl'), 'wb') as f:
+            pickle.dump(clusters, f)
         return clusters, clustered_feats
 
     def predict_phone_density(self, clustered_feats):
@@ -249,3 +274,4 @@ if __name__ == '__main__':
     create_folders()
     mp = ModelPipeline()
     mp.run_pipeline(metric='phone_density')
+

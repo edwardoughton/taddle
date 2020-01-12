@@ -12,7 +12,5 @@ fiona
 matplotlib
 seaborn
 contextily
-
-pytorch
-torchvision
+descartes
 pillow==6.1
