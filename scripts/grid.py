@@ -1,14 +1,14 @@
 """
-Create 1km grid.
+Create 10km x 10km grid.
 
 Written by Ed Oughton
 
 Winter 2020
 
 """
+import argparse
 import os
 import configparser
-
 import geopandas as gpd
 from shapely.geometry import Polygon
 import pandas as pd
@@ -18,9 +18,9 @@ CONFIG = configparser.ConfigParser()
 CONFIG.read('script_config.ini')
 
 COUNTRY = CONFIG['DEFAULT']['COUNTRY']
-SHAPEFILE_DIR = CONFIG['DEFAULT']['SHAPEFILE_DIR']
-GRID_DIR = CONFIG['DEFAULT']['GRID_DIR']
-IMAGE_DIR = CONFIG['DEFAULT']['IMAGE_DIR']
+SHAPEFILE_DIR = f'data/{COUNTRY}/shapefile'
+GRID_DIR = f'data/{COUNTRY}/grid'
+IMAGE_DIR = f'data/{COUNTRY}/images'
 
 def create_folders():
     os.makedirs(GRID_DIR, exist_ok=True)
@@ -54,7 +54,7 @@ def generate_grid(country):
 
     intersection.to_file(os.path.join(GRID_DIR, 'grid.shp'))
 
-    return print('Completed grid generation process')
+    print('Completed grid generation process')
 
 
 if __name__ == '__main__':

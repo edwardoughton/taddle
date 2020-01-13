@@ -1,3 +1,12 @@
+"""
+Create Ridge Regression models using LSMS survey data.
+
+Written by Jatin Mathur
+
+Winter 2020
+
+"""
+
 import configparser
 import pandas as pd
 import numpy as np
@@ -250,16 +259,32 @@ class CreateRidge:
 
 
 if __name__ == '__main__':
-    create_folders()
-    
     lsms_path = 'data/LSMS/malawi_2016/'
     nightlights_path = 'data/Nightlights/2013/'
-    prepare_data(lsms_path, nightlights_path)
-
     cnn_cluster_feats_dir = 'cnn/predicting-poverty-replication/cluster_feats.npy'
     cnn_cluster_order_dir = 'cnn/predicting-poverty-replication/cluster_order.pkl'
     assert os.path.isfile(cnn_cluster_feats_dir), print('Make sure you have run the sub-repository `predicting-poverty-replication`')
-    cr = CreateRidge(cnn_cluster_feats_dir, cnn_cluster_order_dir)
 
-    cr.train_all()
+    create_folders()
 
+    arg = 'all'
+    if len(sys.argv) >= 2:
+        arg = sys.argv[1]
+        assert arg in ['all', 'preprocess', 'train', 'train-consumption', 'train-phone-consumption', 'train-phone-density']
+
+    if arg in ['all', 'preprocess']:
+        prepare_data(lsms_path, nightlights_path)
+    
+    if arg == 'all' or 'train' in arg:
+        cr = CreateRidge(cnn_cluster_feats_dir, cnn_cluster_order_dir)
+        
+        if arg in ['all', 'train']:
+            cr.train_all()
+        elif arg == 'train-consumption':
+            cr.train('consumption')
+        elif arg == 'train-phone-consumption':
+            cr.train('phone_consumption')
+        elif arg == 'train-phone-density':
+            cr.train('phone_density')
+        else:
+            raise ValueError('Args not handled correctly')

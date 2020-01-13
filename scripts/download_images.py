@@ -1,3 +1,12 @@
+"""
+Generate download locations within a country and download them.
+
+Written by Jatin Mathur
+
+Winter 2020
+
+"""
+
 import os
 import configparser
 import math
@@ -16,19 +25,20 @@ import time
 
 # repo imports
 import sys
-sys.append('.')
+sys.path.append('.')
 from utils import ImageryDownloader
 
 CONFIG = configparser.ConfigParser()
 CONFIG.read('script_config.ini')
 
 COUNTRY = CONFIG['DEFAULT']['COUNTRY']
-GRID_DIR = CONFIG['DEFAULT']['GRID_DIR']
-IMAGE_DIR = CONFIG['DEFAULT']['IMAGE_DIR']
+GRID_DIR = f'data/{COUNTRY}/grid'
+IMAGE_DIR = f'data/{COUNTRY}/images'
 
 ACCESS_TOKEN = None
 with open(CONFIG['DEFAULT']['ACCESS_TOKEN_DIR'], 'r') as f:
     ACCESS_TOKEN = f.readlines()[0]
+assert ACCESS_TOKEN is not None, print("Access token is not valid")
 
 def create_folders():
     os.makedirs(IMAGE_DIR, exist_ok=True)
@@ -139,12 +149,31 @@ def download_images(df):
 
 if __name__ == '__main__':
     create_folders()
-    
-#     print('Generating download locations...')
-#     generate_country_download_locations(COUNTRY)
-    
-    df_download = pd.read_csv(os.path.join(GRID_DIR, 'image_download_locs.csv'))
 
-    print('Downloading images. Might take a while...')
-    download_images(df_download)
-            
+    arg = 'all'
+    if len(sys.argv) >= 2:
+        arg = sys.argv[1]
+        assert arg in ['all', 'generate-download-locations', 'download-images']
+        
+    if arg == 'all':
+        print('Generating download locations...')
+        generate_country_download_locations(COUNTRY)
+        
+        df_download = pd.read_csv(os.path.join(GRID_DIR, 'image_download_locs.csv'))
+
+        print('Downloading images. Might take a while...')
+        download_images(df_download)
+        
+    elif arg == ['generate-download-locations']:
+        print('Generating download locations...')
+        generate_country_download_locations(COUNTRY)
+
+    elif arg == 'download-images':
+        df_download = pd.read_csv(os.path.join(GRID_DIR, 'image_download_locs.csv'))
+
+        print('Downloading images. Might take a while...')
+        download_images(df_download)
+
+    else:
+        raise ValueError('Args not handled correctly')
+    

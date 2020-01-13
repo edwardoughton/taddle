@@ -1,3 +1,18 @@
+"""
+Handful of utility functions that are used throughout the repository
+
+Includes:
+    merge_on_lat_lon: merge on dataframes using lat/lon
+    RidgeEnsemble: ensembles Ridge Regression models
+    ImageryDownloader: downloads images usign Google Static Maps API
+    CustomProgressBar: simple carriage-return based "progress bar"
+
+Written by Jatin Mathur
+
+Winter 2020
+
+"""
+
 import requests
 import matplotlib.pyplot as plt
 from io import BytesIO

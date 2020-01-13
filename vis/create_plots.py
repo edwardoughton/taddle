@@ -1,3 +1,12 @@
+"""
+Create plots of grid-level predictions across a country
+
+Written by Jatin Mathur
+
+Winter 2020
+
+"""
+
 import configparser
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,13 +28,16 @@ CONFIG.read('script_config.ini')
 
 COUNTRY = CONFIG['DEFAULT']['COUNTRY']
 
+def create_folders():
+    os.makedirs(f'results/{COUNTRY}/figures/)
+
 def create_plot(country, metric):
     print(f'creating plot for {metric}')
     df_geo = gpd.read_file(f'data/{country}/grid/grid.shp')
     df_geo['centroid'] = df_geo['geometry'].centroid
     df_geo['centroid_lat'] = df_geo['centroid'].apply(lambda point: point.y)
     df_geo['centroid_lon'] = df_geo['centroid'].apply(lambda point: point.x)
-    preds = pd.read_csv(f'results/malawi/ridge_{metric}/predictions.csv')
+    preds = pd.read_csv(f'results/{country}/ridge_{metric}/predictions.csv')
 
     prev_len = len(df_geo)
     df_geo = merge_on_lat_lon(df_geo, preds, keys=['centroid_lat', 'centroid_lon'])
@@ -58,11 +70,27 @@ def create_plot(country, metric):
     label = (metric +' per capita').replace('_', ' ')
     ax.set_title(f'Malawi Predicted {label.title() + units}', fontsize=18)
 
-    save_dir = f'results/malawi/figures/predicted_{metric}_per_capita.png'
+    save_dir = f'results/{country}/figures/predicted_{metric}_per_capita.png'
     print(f'Saving figure to {save_dir}')
     plt.savefig(save_dir)
 
 if __name__ == '__main__':
-    for metric in ['consumption', 'phone_consumption', 'phone_density']:
-        create_plot(COUNTRY, metric)
+
+    arg = 'all'
+    if len(sys.argv) >= 2:
+        arg = sys.argv[1]
+        assert arg in ['consumption', 'phone-consumption', 'phone-density']
+        
+    if arg == 'all':
+        for metric in ['consumption', 'phone_consumption', 'phone_density']:
+            create_plot(COUNTRY, metric)
+    elif arg == 'consumption':
+        create_plot(COUNTRY, 'consumption')
+    elif arg == 'phone-consumption':
+        create_plot(COUNTRY, 'phone_consumption')
+    elif arg == 'phone-density':
+        create_plot(COUNTRY, 'phone_density')
+    else:
+        raise ValueError('Args not handled correctly')
+
 

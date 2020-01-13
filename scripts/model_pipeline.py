@@ -1,3 +1,15 @@
+"""
+Pass downloaded images through the model pipeline, namely:
+    - extract features using CNN
+    - aggregate cluster-level features
+    - use ridge models to predict phone_consumption, phone_density, or consumption
+
+Written by Jatin Mathur
+
+Winter 2020
+
+"""
+
 import configparser
 import torch
 import torch.nn as nn
@@ -22,8 +34,10 @@ from utils import RidgeEnsemble, CustomProgressBar
 CONFIG = configparser.ConfigParser()
 CONFIG.read('script_config.ini')
 
-GRID_DIR = CONFIG['DEFAULT']['GRID_DIR']
-IMAGE_DIR = CONFIG['DEFAULT']['IMAGE_DIR']
+COUNTRY = CONFIG['DEFAULT']['COUNTRY']
+GRID_DIR = f'data/{COUNTRY}/grid'
+IMAGE_DIR = f'data/{COUNTRY}/images'
+
 CNN_DIR = CONFIG['MODELS']['CNN_DIR']
 RIDGE_PHONE_DENSITY_DIR = CONFIG['MODELS']['RIDGE_PHONE_DENSITY_DIR']
 RIDGE_PHONE_CONSUMPTION_DIR = CONFIG['MODELS']['RIDGE_PHONE_CONSUMPTION_DIR']
@@ -276,6 +290,28 @@ class ModelPipeline:
 if __name__ == '__main__':
     create_folders()
     mp = ModelPipeline()
-    for metric in ['consumption', 'phone_density', 'phone_consumption']:
-        mp.run_pipeline(metric=metric)
+
+    arg = 'all'
+    if len(sys.argv) >= 2:
+        arg = sys.argv[1]
+        assert arg in ['all', 'extract-features', 'predict-consumption', 'predict-phone-consumption', 'predict-phone-density']
+
+    if arg == 'extract-features':
+        mp.extract_features()
+
+    elif arg == 'predict-consumption':
+        mp.run_pipeline(metric='consumption')
+
+    elif arg == 'predict-phone-consumption':
+        mp.run_pipeline(metric='phone_consumption')
+
+    elif arg == 'predict-phone-density':
+        mp.run_pipeline(metric='phone_density')
+
+    elif arg == 'all':
+        for metric in ['consumption', 'phone_density', 'phone_consumption']:
+            mp.run_pipeline(metric=metric)
+    
+    else:
+        raise ValueError('Args not handled correctly')
 

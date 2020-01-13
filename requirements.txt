@@ -1,6 +1,7 @@
 configparser
 pandas
 numpy
+scikit-learn
 geopandas
 shapely
 pyproj
@@ -13,4 +14,6 @@ matplotlib
 seaborn
 contextily
 descartes
+joblib
+tqdm
 pillow==6.1
