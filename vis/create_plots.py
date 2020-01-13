@@ -29,7 +29,7 @@ CONFIG.read('script_config.ini')
 COUNTRY = CONFIG['DEFAULT']['COUNTRY']
 
 def create_folders():
-    os.makedirs(f'results/{COUNTRY}/figures/)
+    os.makedirs(f'results/{COUNTRY}/figures/')
 
 def create_plot(country, metric):
     print(f'creating plot for {metric}')

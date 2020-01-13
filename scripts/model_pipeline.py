@@ -81,14 +81,14 @@ class ModelPipeline:
         assert metric in ['phone_density', 'phone_consumption', 'consumption']
         print(f'Running prediction pipeline on metric: {metric}')
         # check to see if clustered feats already exist
-        SAVED_CLUSTER_FEATS_NAME = 'clustered_features.npy'
-        clusters = None
-        clustered_features = None
+        SAVED_CLUSTER_FEATS_NAME = 'grid_features.npy'
+        grids = None
+        grid_features = None
         if SAVED_CLUSTER_FEATS_NAME in os.listdir(CNN_FEATURE_SAVE_DIR):
             print('Loading saved cluster features...')
-            with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'cluster_names.pkl'), 'rb') as f:
-                clusters = pickle.load(f)
-            clustered_features = np.load(os.path.join(CNN_FEATURE_SAVE_DIR, SAVED_CLUSTER_FEATS_NAME))
+            with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'grid_names.pkl'), 'rb') as f:
+                grids = pickle.load(f)
+            grid_features = np.load(os.path.join(CNN_FEATURE_SAVE_DIR, SAVED_CLUSTER_FEATS_NAME))
         else:
             print('Reading reference dataframe...')
             try:
@@ -101,30 +101,30 @@ class ModelPipeline:
             images, features = self.extract_features()
 
             print('Clustering the extracted features using the reference dataframe...')
-            clusters, clustered_features = self.cluster_features(df, images, features, cluster_keys=['centroid_lat', 'centroid_lon'], image_key='image_name')
+            grids, grid_features = self.cluster_features(df, images, features, cluster_keys=['centroid_lat', 'centroid_lon'], image_key='image_name')
 
         print('Generating predictions using Ridge Regression model for given metric...')
         predictions = None
         SAVE_DIR = None
         if metric == 'phone_density':
-            predictions = self.predict_phone_density(clustered_features)
+            predictions = self.predict_phone_density(grid_features)
             SAVE_DIR = RIDGE_PHONE_DENSITY_SAVE_DIR
 
         elif metric == 'phone_consumption':
-            predictions = self.predict_phone_consumption(clustered_features)
+            predictions = self.predict_phone_consumption(grid_features)
             SAVE_DIR = RIDGE_PHONE_CONSUMPTION_SAVE_DIR
 
         elif metric == 'consumption':
-            predictions = self.predict_consumption(clustered_features)
+            predictions = self.predict_consumption(grid_features)
             SAVE_DIR = RIDGE_CONSUMPTION_SAVE_DIR
 
-        assert predictions is not None and SAVE_DIR is not None and len(clusters) == len(predictions)
+        assert predictions is not None and SAVE_DIR is not None and len(grids) == len(predictions)
 
         print('Saving predictions to ' + os.path.join(SAVE_DIR, 'predictions.csv'))
         columns = ['centroid_lat', 'centroid_lon', f'predicted_{metric}_pc']
         with open(os.path.join(SAVE_DIR, 'predictions.csv'), 'w') as f:
             f.write(','.join(columns) + '\n')
-            for (centroid_lat, centroid_lon), pred in zip(clusters, predictions):
+            for (centroid_lat, centroid_lon), pred in zip(grids, predictions):
                 to_write = [str(centroid_lat), str(centroid_lon), str(pred)]
                 f.write(','.join(to_write) + '\n')
 
@@ -241,15 +241,15 @@ class ModelPipeline:
 
             df[image_key] should not contain any images that are not in the list of image names
 
-            Returns: two items of equal length, the first being a list of clusters and the second being a cluster-aggregated feature array of shape (NUM_CLUSTERS, 4096)
+            Returns: two items of equal length, the first being a list of grids and the second being a cluster-aggregated feature array of shape (NUM_grids, 4096)
         """
-        SAVE_NAME = 'clustered_features.npy'
+        SAVE_NAME = 'grid_features.npy'
         if SAVE_NAME in os.listdir(CNN_FEATURE_SAVE_DIR):
             print('Loading saved features...')
-            clusters = None
-            with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'cluster_names.pkl'), 'rb') as f:
-                clusters = pickle.load(f)
-            return clusters, np.load(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME))
+            grids = None
+            with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'grid_names.pkl'), 'rb') as f:
+                grids = pickle.load(f)
+            return grids, np.load(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME))
         
         assert len(images) == len(features)
         if type(cluster_keys) is not list:
@@ -262,19 +262,19 @@ class ModelPipeline:
 
         grouped = df.groupby(cluster_keys)
         clustered_feats = np.zeros((len(grouped), 4096))
-        clusters = []
+        grids = []
         for i, ((clust_lat, clust_lon), group) in enumerate(grouped):
             group_feats = np.zeros((len(group), 4096))
             for j, feat_idx in enumerate(group['feature_index']):
                 group_feats[j,:] = features[feat_idx,:]
             group_feats = group_feats.mean(axis=0)
             clustered_feats[i,:] = group_feats
-            clusters.append([clust_lat, clust_lon])
+            grids.append([clust_lat, clust_lon])
         
         np.save(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME), clustered_feats)
-        with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'cluster_names.pkl'), 'wb') as f:
-            pickle.dump(clusters, f)
-        return clusters, clustered_feats
+        with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'grid_names.pkl'), 'wb') as f:
+            pickle.dump(grids, f)
+        return grids, clustered_feats
 
     def predict_phone_density(self, clustered_feats):
         return self.ridge_phone_density.predict(clustered_feats)

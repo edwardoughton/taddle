@@ -34,7 +34,7 @@ We use https://github.com/jmather625/predicting-poverty-replication as a submodu
     git submodule init
     git submodule update
 
-Navigate to `cnn/predicting-poverty-replication` and follow the ReadMe. This will show you how to train the CNN from scratch and use it to predict `consumption`, a metric for poverty. You should obtain the following files/folders inside the predicting-poverty-replication repository.
+Navigate to `cnn/predicting-poverty-replication` and follow the ReadMe. This will show you how to train the CNN from scratch and use it to predict `consumption`, a metric for poverty. You should obtain the following files/folders *inside* the predicting-poverty-replication repository.
 - trained_model.pt (CNN)
 - LSMS/malawi_2016/ (survey data)
 - Nightlights/2013/ (nightlights data)
@@ -42,10 +42,10 @@ Navigate to `cnn/predicting-poverty-replication` and follow the ReadMe. This wil
 - cluster_order.pkl
 - api_key.txt
 
-Copy those files/folders to the following locations:
+Copy those files/folders to the following locations, relative to root:
 - trained_model.pt -> model/trained_model.pt
-- LSMS/malawi_2016/ -> data/LSMS/malawi_2016
-- Nightlights/2013/ -> data/Nightlights/2013
+- LSMS/malawi_2016/ -> LSMS/input/malawi
+- Nightlights/2013/ -> LSMS/Nightlights/2013
 - api_key.txt -> api_key.txt (root of the repo)
 
 Finally, run `python scripts/create_ridge_models.py` to create the Ridge Regression models that will predict broadband demand. You can explore this and other aspects of the code in the `ipynb` folder.

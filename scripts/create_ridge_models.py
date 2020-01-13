@@ -41,15 +41,14 @@ CONFIG.read('script_config.ini')
 
 COUNTRY = CONFIG['DEFAULT']['COUNTRY']
 
-CLUSTER_DATA_DIR = f'data/{COUNTRY}/LSMS_clusters/cluster_data.csv'
-CLUSTER_PREDICTIONS_DIR = f'results/{COUNTRY}/LSMS_clusters/cluster_predictions.csv'
+CLUSTER_DATA_DIR = f'LSMS/output/{COUNTRY}/cluster_data.csv'
+CLUSTER_PREDICTIONS_DIR = f'LSMS/output/{COUNTRY}/cluster_predictions.csv'
 
 # Malawi Purchasing Power Parity 2013
 PPP_2013 = 116.28
 
 def create_folders():
-    os.makedirs(f'data/{COUNTRY}/clusters', exist_ok=True)
-    os.makedirs(f'results/{COUNTRY}/clusters', exist_ok=True)
+    os.makedirs(f'LSMS/output/{COUNTRY}', exist_ok=True)
 
 def create_space(lat, lon):
     # these are pulled from the paper to make the 10km^2 area
@@ -259,8 +258,8 @@ class CreateRidge:
 
 
 if __name__ == '__main__':
-    lsms_path = 'data/LSMS/malawi_2016/'
-    nightlights_path = 'data/Nightlights/2013/'
+    lsms_path = 'LSMS/input/malawi/'
+    nightlights_path = 'LSMS/Nightlights/2013/'
     cnn_cluster_feats_dir = 'cnn/predicting-poverty-replication/cluster_feats.npy'
     cnn_cluster_order_dir = 'cnn/predicting-poverty-replication/cluster_order.pkl'
     assert os.path.isfile(cnn_cluster_feats_dir), print('Make sure you have run the sub-repository `predicting-poverty-replication`')
@@ -288,4 +287,3 @@ if __name__ == '__main__':
             cr.train('phone_density')
         else:
             raise ValueError('Args not handled correctly')
-        
