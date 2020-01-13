@@ -27,7 +27,7 @@ Then run:
     conda install pytorch torchvision -c pytorch
 
 All code for **taddle** is written in Python (Python>=3.6) and has a number of dependencies.
-See `requirements.txt` for a full list. Run `pip install requirements.txt` to install them.
+See `requirements.txt` for a full list. Run `pip install -r requirements.txt` to install them.
 
 We use https://github.com/jmather625/predicting-poverty-replication as a submodule. It contains instructions on downloading data and training the CNN.
 
@@ -73,7 +73,9 @@ Then run:
 
 `create_plots.py` will generate a prediction map for the country for each broadband metric. An example is shown below:
 
-![Predicted Phone Density Figure](results/malawi/figures/predicted_phone_density_per_capita.png)
+<p align="center">
+  <img src="results/malawi/figures/predicted_phone_density_per_capita.png" width="300" height="600">
+</p>
 
 Results
 ======================
