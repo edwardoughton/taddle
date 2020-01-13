@@ -143,7 +143,6 @@ dmypy.json
 
 # Data
 data/*
-results/*
 vis/figures*
 images/*
 scripts/script_config.ini

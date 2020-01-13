@@ -73,7 +73,7 @@ Then run:
 
 `create_plots.py` will generate a prediction map for the country for each broadband metric. An example is shown below:
 
-!['Predicted Phone Density Figure'](results/malawi/figures/predicted_phone_density_per_capita.png)
+![Predicted Phone Density Figure](results/malawi/figures/predicted_phone_density_per_capita.png)
 
 Results
 ======================
