@@ -1,29 +1,34 @@
 """
-Create 1km grid.
+Create 10km x 10km grid.
 
 Written by Ed Oughton
 
 Winter 2020
 
 """
+import argparse
 import os
 import configparser
-
 import geopandas as gpd
 from shapely.geometry import Polygon
+import pandas as pd
 import numpy as np
 
 CONFIG = configparser.ConfigParser()
-CONFIG.read(os.path.join(os.path.dirname(__file__), 'script_config.ini'))
-BASE_PATH = CONFIG['file_locations']['base_path']
+CONFIG.read('script_config.ini')
 
-DATA_RAW = os.path.join(BASE_PATH, 'raw')
-DATA_PROCESSED = os.path.join(BASE_PATH, 'processed')
+COUNTRY = CONFIG['DEFAULT']['COUNTRY']
+SHAPEFILE_DIR = f'data/{COUNTRY}/shapefile'
+GRID_DIR = f'data/{COUNTRY}/grid'
+IMAGE_DIR = f'data/{COUNTRY}/images'
+
+def create_folders():
+    os.makedirs(GRID_DIR, exist_ok=True)
 
 def generate_grid(country):
 
     filename = 'national_outline_{}.shp'.format(country)
-    country_outline = gpd.read_file(os.path.join(DATA_PROCESSED, filename))
+    country_outline = gpd.read_file(os.path.join(SHAPEFILE_DIR, filename))
 
     country_outline.crs = {'init':'epsg:4326'}
     country_outline = country_outline.to_crs({'init':'epsg:3857'})
@@ -47,13 +52,11 @@ def generate_grid(country):
     intersection.crs = {'init' :'epsg:3857'}
     intersection = intersection.to_crs({'init': 'epsg:4326'})
 
-    intersection.to_file(os.path.join(DATA_PROCESSED, 'grid.shp'))
+    intersection.to_file(os.path.join(GRID_DIR, 'grid.shp'))
 
-    return print('Completed grid generation process')
+    print('Completed grid generation process')
 
 
 if __name__ == '__main__':
-
-    country = 'MWI'
-
-    generate_grid(country)
+    create_folders()
+    generate_grid(COUNTRY)
