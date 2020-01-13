@@ -294,21 +294,21 @@ if __name__ == '__main__':
     arg = 'all'
     if len(sys.argv) >= 2:
         arg = sys.argv[1]
-        assert arg in ['all', 'extract-features', 'predict-consumption', 'predict-phone-consumption', 'predict-phone-density']
+        assert arg in ['--all', '--extract-features', '--predict-consumption', '--predict-phone-consumption', '--predict-phone-density']
 
-    if arg == 'extract-features':
+    if arg == '--extract-features':
         mp.extract_features()
 
-    elif arg == 'predict-consumption':
+    elif arg == '--predict-consumption':
         mp.run_pipeline(metric='consumption')
 
-    elif arg == 'predict-phone-consumption':
+    elif arg == '--predict-phone-consumption':
         mp.run_pipeline(metric='phone_consumption')
 
-    elif arg == 'predict-phone-density':
+    elif arg == '--predict-phone-density':
         mp.run_pipeline(metric='phone_density')
 
-    elif arg == 'all':
+    elif arg == '--all':
         for metric in ['consumption', 'phone_density', 'phone_consumption']:
             mp.run_pipeline(metric=metric)
     

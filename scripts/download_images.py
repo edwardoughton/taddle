@@ -153,9 +153,9 @@ if __name__ == '__main__':
     arg = 'all'
     if len(sys.argv) >= 2:
         arg = sys.argv[1]
-        assert arg in ['all', 'generate-download-locations', 'download-images']
+        assert arg in ['--all', '--generate-download-locations', '--download-images']
         
-    if arg == 'all':
+    if arg == '--all':
         print('Generating download locations...')
         generate_country_download_locations(COUNTRY)
         
@@ -164,11 +164,11 @@ if __name__ == '__main__':
         print('Downloading images. Might take a while...')
         download_images(df_download)
         
-    elif arg == ['generate-download-locations']:
+    elif arg == ['--generate-download-locations']:
         print('Generating download locations...')
         generate_country_download_locations(COUNTRY)
 
-    elif arg == 'download-images':
+    elif arg == '--download-images':
         df_download = pd.read_csv(os.path.join(GRID_DIR, 'image_download_locs.csv'))
 
         print('Downloading images. Might take a while...')

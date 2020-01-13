@@ -59,7 +59,9 @@ As an input, all we need is a shapefile of the country (any country) you wish to
 Then run:
 
     python scripts/grid.py
-    python scripts/download_images.py
+    python scripts/download_images.py --generate-download-locations
+    python scripts/download_images.py --download-images
+    python scripts/model_pipeline.py --extract-features
     python scripts/model_pipeline.py
     python vis/create_plots.py
 
