@@ -50,7 +50,7 @@ Copy those files/folders to the following locations:
 
 Finally, run `python scripts/create_ridge_models.py` to create the Ridge Regression models that will predict broadband demand. You can explore this and other aspects of the code in the `ipynb` folder.
 
-**Alternatively, you can skip this process and download the files from this GDrive link: aa. Move them to the following locations: https://drive.google.com/drive/folders/1ILbkcckl38tMVYSMm3Oq_VYaOKseuyIp?usp=sharing**
+**Alternatively, you can skip this process and download the files from this GDrive link: https://drive.google.com/drive/folders/1ILbkcckl38tMVYSMm3Oq_VYaOKseuyIp?usp=sharing. Move them to the following locations:**
 - trained_model.pt -> model/trained_model.pt
 - ridge_consumption.joblib -> model/ridge_consumption.joblib
 - ridge_phone_consumption.joblib -> model/ridge_phone_consumption.joblib
