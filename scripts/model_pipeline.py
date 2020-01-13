@@ -61,6 +61,7 @@ class ModelPipeline:
         self.ridge_phone_density = joblib.load(RIDGE_PHONE_DENSITY_DIR)
         self.ridge_phone_consumption = joblib.load(RIDGE_PHONE_CONSUMPTION_DIR)
         self.ridge_consumption = joblib.load(RIDGE_CONSUMPTION_DIR)
+        print()
 
     def run_pipeline(self, metric):
         assert metric in ['phone_density', 'phone_consumption', 'consumption']
@@ -106,12 +107,14 @@ class ModelPipeline:
         assert predictions is not None and SAVE_DIR is not None and len(clusters) == len(predictions)
 
         print('Saving predictions to ' + os.path.join(SAVE_DIR, 'predictions.csv'))
-        columns = ['centroid_lat', 'centroid_lon', f'predicted_{metric}']
+        columns = ['centroid_lat', 'centroid_lon', f'predicted_{metric}_pc']
         with open(os.path.join(SAVE_DIR, 'predictions.csv'), 'w') as f:
             f.write(','.join(columns) + '\n')
             for (centroid_lat, centroid_lon), pred in zip(clusters, predictions):
                 to_write = [str(centroid_lat), str(centroid_lon), str(pred)]
                 f.write(','.join(to_write) + '\n')
+
+        print()
 
 
     def predict_nightlights(self):
@@ -185,7 +188,7 @@ class ModelPipeline:
         i = 0
         batch_size = 4
         features = np.zeros((len(ims), 4096))
-#         pbar = tqdm(total=len(ims))
+        #  pbar = tqdm(total=len(ims))
         pbar = CustomProgressBar(len(ims))
 
         # this approach uses batching and should offer a speed-up over passing one image at a time by nearly 10x
@@ -273,5 +276,6 @@ class ModelPipeline:
 if __name__ == '__main__':
     create_folders()
     mp = ModelPipeline()
-    mp.run_pipeline(metric='phone_density')
+    for metric in ['consumption', 'phone_density', 'phone_consumption']:
+        mp.run_pipeline(metric=metric)
 
