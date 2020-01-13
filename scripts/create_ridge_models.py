@@ -41,8 +41,8 @@ CONFIG.read('script_config.ini')
 
 COUNTRY = CONFIG['DEFAULT']['COUNTRY']
 
-CLUSTER_DATA_DIR = f'data/{COUNTRY}/clusters/cluster_data.csv'
-CLUSTER_PREDICTIONS_DIR = f'results/{COUNTRY}/clusters/cluster_predictions.csv'
+CLUSTER_DATA_DIR = f'data/{COUNTRY}/LSMS_clusters/cluster_data.csv'
+CLUSTER_PREDICTIONS_DIR = f'results/{COUNTRY}/LSMS_clusters/cluster_predictions.csv'
 
 # Malawi Purchasing Power Parity 2013
 PPP_2013 = 116.28
@@ -288,3 +288,4 @@ if __name__ == '__main__':
             cr.train('phone_density')
         else:
             raise ValueError('Args not handled correctly')
+        
