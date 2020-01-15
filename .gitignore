@@ -148,3 +148,4 @@ images/*
 scripts/script_config.ini
 cache
 *.zip
+results/*
