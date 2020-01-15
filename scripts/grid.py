@@ -35,8 +35,9 @@ def generate_grid(country):
 
     xmin,ymin,xmax,ymax = country_outline.total_bounds
 
-    length = 1e4 #1000
-    wide = 1e4 #1000
+    #10km sides, leading to 100km^2 area
+    length = 1e4
+    wide = 1e4
 
     cols = list(range(int(np.floor(xmin)), int(np.ceil(xmax)), int(wide)))
     rows = list(range(int(np.floor(ymin)), int(np.ceil(ymax)), int(length)))

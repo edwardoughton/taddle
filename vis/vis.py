@@ -24,12 +24,61 @@ DATA_RAW = os.path.join(BASE_PATH, 'raw')
 DATA_PROCESSED = os.path.join(BASE_PATH, 'processed')
 DATA_RESULTS = os.path.join(BASE_PATH, '..', 'results')
 
+def r2(x, y):
+    coef = round(np.corrcoef(x, y)[0, 1]**2, 3)
+    return coef
+
+def plot(x, y, x_label, y_label):
+
+    g = sns.jointplot(x, y, stat_func=r2,
+        kind="reg").set_axis_labels(x_label, y_label)
+    g.savefig(os.path.join(BASE_PATH, '..', 'vis','figures', 'jointplot_{}_{}.png'.format(x_label, y_label)))
+
+def intro_regplot(data):
+
+    plot(data['nightlights'], data['cons'], 'Luminosity (DN)', 'Consumption ($ per month)')
+    plot(data['nightlights'], data['cluster_phone_cons'], 'Luminosity (DN)', 'Total cost of phone services ($ per month)')
+    plot(data['nightlights'], data['cluster_hh_f34'], 'Luminosity (DN)', 'Total cell phones')
+    plot(data['nightlights'], data['cluster_hh_f35'], 'Luminosity (DN)', 'Annual consumption of phone and fax services')
+
+    return print('Completed regplot')
+
 
 def create_regplot(data):
 
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(10,8))
+
+    coef1 = r2(data['nightlights'], data['cons'])
+    g = sns.regplot(x="nightlights", y="cons", data=data, ax=ax1)
+    g.set(xlabel='Luminosity (DN)', ylabel='Consumption ($ per month)',
+        title='Luminosity vs\nConsumption (R$^2$={})'.format(str(coef1)))
+
+    coef2 = r2(data['nightlights'], data['cluster_phone_cons'])
+    g = sns.regplot(x="nightlights", y="cluster_phone_cons", data=data, ax=ax2)
+    g.set(xlabel='Luminosity (DN)', ylabel='Total Cost ($ per month)',
+        title='Luminosity vs\nTotal Cost of Phone Services (R$^2$={})'.format(str(coef2)))
+
+    coef3 = r2(data['nightlights'], data['cluster_hh_f34'])
+    g = sns.regplot(x="nightlights", y="cluster_hh_f34", data=data, ax=ax3)
+    g.set(xlabel='Luminosity (DN)', ylabel='Number of Cell Phones',
+        title='Luminosity vs Total Cell \nPhones per HH (R$^2$={})'.format(str(coef3)))
+
+    data = data.dropna(subset=['nightlights', 'cluster_hh_f35'])
+    coef4 = r2(data['nightlights'].dropna(), data['cluster_hh_f35'].dropna())
+    g = sns.regplot(x="nightlights", y="cluster_hh_f35", data=data, ax=ax4)
+    g.set(xlabel='Luminosity (DN)', ylabel='Annual consumption ($)',
+        title='Luminosity vs Annual Consumption\nof Phone and Fax Services (R$^2$={})'.format(str(coef4)))
+
+    fig.tight_layout()
+    fig.savefig(os.path.join(BASE_PATH, '..', 'vis','figures', 'regplot.png'))
+
+    return print('Completed regplot')
+
+
+def results(data):
+
     # coeff_urban = round(coefficients['urban_{}'.format(distance)].values[0], 3)
     # coeff_rural = round(coefficients['rural_{}'.format(distance)].values[0], 3)
-
 
     # metric = "luminosity_sum_{}".format(distance)
     # metric2 = 'cons_pred_{}'.format(distance)
@@ -77,7 +126,6 @@ def create_regplot(data):
 
     return print('Completed regplot')
 
-
 if __name__ == '__main__':
 
     data_1 = pd.read_csv(os.path.join(DATA_PROCESSED, 'lsms-cluster-2016.csv'))
@@ -87,5 +135,7 @@ if __name__ == '__main__':
     data_2 =  pd.read_csv(os.path.join(DATA_PROCESSED, 'cluster_cnn_predictions.csv'))
 
     data = pd.merge(data_1, data_2, on=['lat', 'lon'])
+
+    intro_regplot(data)
 
     create_regplot(data)
