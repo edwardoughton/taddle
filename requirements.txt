@@ -1,6 +1,7 @@
 configparser
 pandas
 numpy
+scikit-learn
 geopandas
 shapely
 pyproj
@@ -12,7 +13,10 @@ fiona
 matplotlib
 seaborn
 contextily
-
 pytorch
 torchvision
+descartes
+joblib
+tqdm
 pillow>=6.2.0 #pillow=6.1 <- github said 6.1 had a security vulnerability
+
