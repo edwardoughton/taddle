@@ -15,7 +15,7 @@ import geopandas as gpd
 from shapely.geometry.point import Point
 import matplotlib.cm as cm
 import matplotlib.colors as colors
-
+import os
 import sys
 sys.path.append('.')
 from utils import merge_on_lat_lon
@@ -80,7 +80,7 @@ if __name__ == '__main__':
     if len(sys.argv) >= 2:
         arg = sys.argv[1]
         assert arg in ['consumption', 'phone-consumption', 'phone-density']
-        
+
     if arg == 'all':
         for metric in ['consumption', 'phone_consumption', 'phone_density']:
             create_plot(COUNTRY, metric)
@@ -92,5 +92,3 @@ if __name__ == '__main__':
         create_plot(COUNTRY, 'phone_density')
     else:
         raise ValueError('Args not handled correctly')
-
-

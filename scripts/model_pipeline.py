@@ -134,7 +134,7 @@ class ModelPipeline:
     def predict_nightlights(self):
         """
             Obtains nightlight predictions for all the images.
-            
+
             Return: two items of equal length, one being the list of images and the other an array of shape (len(images), NUM_CLASSES)
         """
         SAVE_NAME = 'forward_classifications.npy'
@@ -179,7 +179,7 @@ class ModelPipeline:
         """
             Obtains feature vectors for all the images.
             Saves results to disk for safekeeping as this can be a long step.
-            
+
             Return: two items of equal length, one being the list of images and the other an array of shape (len(images), 4096)
         """
         SAVE_NAME = 'forward_features.npy'
@@ -222,7 +222,7 @@ class ModelPipeline:
             features[i:i+rem,:] = self.cnn(ims_as_tensors).cpu().detach().numpy()
             i += rem
             pbar.update(rem)
-        
+
         print()
         self.cnn.classifier = original
         np.save(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME), features)
@@ -250,7 +250,7 @@ class ModelPipeline:
             with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'grid_names.pkl'), 'rb') as f:
                 grids = pickle.load(f)
             return grids, np.load(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME))
-        
+
         assert len(images) == len(features)
         if type(cluster_keys) is not list:
             cluster_keys = [cluster_keys]
@@ -270,7 +270,7 @@ class ModelPipeline:
             group_feats = group_feats.mean(axis=0)
             clustered_feats[i,:] = group_feats
             grids.append([clust_lat, clust_lon])
-        
+
         np.save(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME), clustered_feats)
         with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'grid_names.pkl'), 'wb') as f:
             pickle.dump(grids, f)
@@ -311,7 +311,6 @@ if __name__ == '__main__':
     elif arg == '--all':
         for metric in ['consumption', 'phone_density', 'phone_consumption']:
             mp.run_pipeline(metric=metric)
-    
+
     else:
         raise ValueError('Args not handled correctly')
-
