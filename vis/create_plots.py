@@ -44,7 +44,6 @@ def create_plot(country, metric):
     assert len(df_geo) == prev_len, print('Merging geo-dataframe with predictions failed')
 
     geometry = df_geo['geometry']
-
     # if prediction is under 0, set to 0
     coloring_guide = df_geo[f'predicted_{metric}_pc']
     coloring_guide.loc[coloring_guide < 0] = 0
@@ -75,20 +74,19 @@ def create_plot(country, metric):
     plt.savefig(save_dir)
 
 if __name__ == '__main__':
-
-    arg = 'all'
+    arg = '--all'
     if len(sys.argv) >= 2:
         arg = sys.argv[1]
-        assert arg in ['consumption', 'phone-consumption', 'phone-density']
+        assert arg in ['--consumption', '--phone-consumption', '--phone-density']
 
-    if arg == 'all':
+    if arg == '--all':
         for metric in ['consumption', 'phone_consumption', 'phone_density']:
             create_plot(COUNTRY, metric)
-    elif arg == 'consumption':
+    elif arg == '--consumption':
         create_plot(COUNTRY, 'consumption')
-    elif arg == 'phone-consumption':
+    elif arg == '--phone-consumption':
         create_plot(COUNTRY, 'phone_consumption')
-    elif arg == 'phone-density':
+    elif arg == '--phone-density':
         create_plot(COUNTRY, 'phone_density')
     else:
         raise ValueError('Args not handled correctly')

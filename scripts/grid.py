@@ -20,10 +20,8 @@ CONFIG = configparser.ConfigParser()
 CONFIG.read('script_config.ini')
 
 COUNTRY = CONFIG['DEFAULT']['COUNTRY']
-SHAPEFILE_DIR = f'data/{COUNTRY}/shapefile'
-GRID_DIR = f'data/{COUNTRY}/grid'
-IMAGE_DIR = f'data/{COUNTRY}/images'
-
+SHAPEFILE_DIR = f'countries/{COUNTRY}/shapefile'
+GRID_DIR = f'countries/{COUNTRY}/grid'
 
 def create_folders():
     os.makedirs(GRID_DIR, exist_ok=True)
@@ -57,7 +55,7 @@ def generate_grid(country):
     intersection.crs = "epsg:3857"
     intersection = intersection.to_crs("epsg:4326")
 
-    final_grid = query_settlement_layer(intersection, country)
+    final_grid = query_settlement_layer(intersection)
 
     final_grid = final_grid[final_grid.geometry.notnull()]
     final_grid.to_file(os.path.join(GRID_DIR, 'grid.shp'))
@@ -65,13 +63,9 @@ def generate_grid(country):
     print('Completed grid generation process')
 
 
-def query_settlement_layer(grid, country):
-
-    path = os.path.join(SHAPEFILE_DIR, 'MWI.tif')
-
-    grid['population'] = pd.DataFrame(
-        zonal_stats(vectors=grid['geometry'], raster=path, stats='sum'))['sum']
-
+def query_settlement_layer(grid):
+    path = os.path.join(SHAPEFILE_DIR, f'{COUNTRY}.tif')
+    grid['population'] = pd.DataFrame(zonal_stats(vectors=grid['geometry'], raster=path, stats='sum'))['sum']
     grid = grid.replace([np.inf, -np.inf], np.nan)
 
     return grid

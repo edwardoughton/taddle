@@ -35,24 +35,33 @@ CONFIG = configparser.ConfigParser()
 CONFIG.read('script_config.ini')
 
 COUNTRY = CONFIG['DEFAULT']['COUNTRY']
-GRID_DIR = f'data/{COUNTRY}/grid'
-IMAGE_DIR = f'data/{COUNTRY}/images'
+GRID_DIR = f'countries/{COUNTRY}/grid'
+IMAGE_DIR = f'countries/{COUNTRY}/images'
 
 CNN_DIR = CONFIG['MODELS']['CNN_DIR']
 RIDGE_PHONE_DENSITY_DIR = CONFIG['MODELS']['RIDGE_PHONE_DENSITY_DIR']
 RIDGE_PHONE_CONSUMPTION_DIR = CONFIG['MODELS']['RIDGE_PHONE_CONSUMPTION_DIR']
 RIDGE_CONSUMPTION_DIR = CONFIG['MODELS']['RIDGE_CONSUMPTION_DIR']
-SCALER_DIR = CONFIG['MODELS']['SCALER_DIR']
 
-CNN_FEATURE_SAVE_DIR = CONFIG['RESULTS']['CNN_FEATURE_SAVE_DIR']
-RIDGE_PHONE_DENSITY_SAVE_DIR = CONFIG['RESULTS']['RIDGE_PHONE_DENSITY_SAVE_DIR']
-RIDGE_PHONE_CONSUMPTION_SAVE_DIR = CONFIG['RESULTS']['RIDGE_PHONE_CONSUMPTION_SAVE_DIR']
-RIDGE_CONSUMPTION_SAVE_DIR = CONFIG['RESULTS']['RIDGE_CONSUMPTION_SAVE_DIR']
+CNN_FEATURE_SAVE_DIR = f'countries/{COUNTRY}/results/cnn'
+RIDGE_PHONE_DENSITY_SAVE_DIR = f'countries/{COUNTRY}/results/ridge_phone_density'
+RIDGE_PHONE_CONSUMPTION_SAVE_DIR = f'countries/{COUNTRY}/results/ridge_phone_consumption'
+RIDGE_CONSUMPTION_SAVE_DIR = f'countries/{COUNTRY}/results/ridge_consumption'
+
+FORWARD_CLASSIFICATIONS = 'forward_classifications.npy'
+IMAGE_NAMES_CLASSIFICATION = 'image_names_classification.pkl'
+
+FORWARD_FEATURE_EXTRACT = 'forward_features.npy'
+IMAGE_NAMES_FEATURE_EXTRACT = 'image_names_feature_extract.pkl'
+
+GRID_FEATURES = 'grid_features.npy'
+GRID_NAMES = 'grid_names.pkl'
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f'Using {DEVICE} as backend...')
 
 def create_folders():
+    os.makedirs(f'countries/{COUNTRY}/results')
     os.makedirs(CNN_FEATURE_SAVE_DIR, exist_ok=True)
     os.makedirs(RIDGE_PHONE_DENSITY_SAVE_DIR, exist_ok=True)
     os.makedirs(RIDGE_PHONE_CONSUMPTION_SAVE_DIR, exist_ok=True)
@@ -81,14 +90,13 @@ class ModelPipeline:
         assert metric in ['phone_density', 'phone_consumption', 'consumption']
         print(f'Running prediction pipeline on metric: {metric}')
         # check to see if clustered feats already exist
-        SAVED_CLUSTER_FEATS_NAME = 'grid_features.npy'
         grids = None
         grid_features = None
-        if SAVED_CLUSTER_FEATS_NAME in os.listdir(CNN_FEATURE_SAVE_DIR):
+        if GRID_FEATURES in os.listdir(CNN_FEATURE_SAVE_DIR):
             print('Loading saved cluster features...')
-            with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'grid_names.pkl'), 'rb') as f:
+            with open(os.path.join(CNN_FEATURE_SAVE_DIR, GRID_NAMES), 'rb') as f:
                 grids = pickle.load(f)
-            grid_features = np.load(os.path.join(CNN_FEATURE_SAVE_DIR, SAVED_CLUSTER_FEATS_NAME))
+            grid_features = np.load(os.path.join(CNN_FEATURE_SAVE_DIR, GRID_FEATURES))
         else:
             print('Reading reference dataframe...')
             try:
@@ -98,10 +106,10 @@ class ModelPipeline:
                 exit(1)
 
             print('Extracting features using ' + IMAGE_DIR + ' as the image directory...')
-            images, features = self.extract_features()
+            im_names, features = self.extract_features()
 
             print('Clustering the extracted features using the reference dataframe...')
-            grids, grid_features = self.cluster_features(df, images, features, cluster_keys=['centroid_lat', 'centroid_lon'], image_key='image_name')
+            grids, grid_features = self.cluster_features(df, im_names, features, cluster_keys=['centroid_lat', 'centroid_lon'], image_key='image_name')
 
         print('Generating predictions using Ridge Regression model for given metric...')
         predictions = None
@@ -137,43 +145,42 @@ class ModelPipeline:
 
             Return: two items of equal length, one being the list of images and the other an array of shape (len(images), NUM_CLASSES)
         """
-        SAVE_NAME = 'forward_classifications.npy'
-        if SAVE_NAME in os.listdir(CNN_FEATURE_SAVE_DIR):
+        if FORWARD_CLASSIFICATIONS in os.listdir(CNN_FEATURE_SAVE_DIR):
             print('Loading saved classifications...')
-            ims = None
-            with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'image_names_classification.pkl'), 'rb') as f:
-                ims = pickle.load(f)
-            return ims, np.load(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME))
+            im_names = None
+            with open(os.path.join(CNN_FEATURE_SAVE_DIR, IMAGE_NAMES_CLASSIFICATION), 'rb') as f:
+                im_names = pickle.load(f)
+            return im_names, np.load(os.path.join(CNN_FEATURE_SAVE_DIR, FORWARD_CLASSIFICATIONS))
 
-        ims = os.listdir(IMAGE_DIR)
+        im_names = os.listdir(IMAGE_DIR)
         path = os.path.join(IMAGE_DIR, '{}')
 
         i = 0
         batch_size = 4
-        predictions = np.zeros((len(ims), 3))
-#         pbar = tqdm(total=len(ims))
-        pbar = CustomProgressBar(len(ims))
+        predictions = np.zeros((len(im_names), 3))
+        # pbar = tqdm(total=len(im_names))
+        pbar = CustomProgressBar(len(im_names))
 
         # this approach uses batching and should offer a speed-up over passing one image at a time by nearly 10x
         # runtime should be 5-7 minutes vs 45+ for a full forward pass
-        while i + batch_size < len(ims):
-            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(ims[i+j]), self.transformer) for j in range(batch_size)], 0)
+        while i + batch_size < len(im_names):
+            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(im_names[i+j]), self.transformer) for j in range(batch_size)], 0)
             predictions[i:i+batch_size,:] = self.cnn(ims_as_tensors).cpu().detach().numpy()
             i += batch_size
             pbar.update(batch_size)
 
         # does the final batch of remaining images
-        if len(ims) - i != 0:
-            rem = len(ims) - i
-            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(ims[i+j]), self.transformer) for j in range(rem)], 0)
+        if len(im_names) - i != 0:
+            rem = len(im_names) - i
+            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(im_names[i+j]), self.transformer) for j in range(rem)], 0)
             predictions[i:i+rem,:] = self.cnn(ims_as_tensors).cpu().detach().numpy()
             i += rem
             pbar.update(rem)
 
-        np.save(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME), predictions)
-        with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'image_names_classification.pkl'), 'wb') as f:
-            pickle.dump(ims, f)
-        return ims, predictions
+        np.save(os.path.join(CNN_FEATURE_SAVE_DIR, FORWARD_CLASSIFICATIONS), predictions)
+        with open(os.path.join(CNN_FEATURE_SAVE_DIR, IMAGE_NAMES_CLASSIFICATION), 'wb') as f:
+            pickle.dump(im_names, f)
+        return im_names, predictions
 
     def extract_features(self):
         """
@@ -182,13 +189,12 @@ class ModelPipeline:
 
             Return: two items of equal length, one being the list of images and the other an array of shape (len(images), 4096)
         """
-        SAVE_NAME = 'forward_features.npy'
-        if SAVE_NAME in os.listdir(CNN_FEATURE_SAVE_DIR):
+        if FORWARD_FEATURE_EXTRACT in os.listdir(CNN_FEATURE_SAVE_DIR):
             print('Loading saved features...')
-            ims = None
-            with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'image_names_feature_extraction.pkl'), 'rb') as f:
-                ims = pickle.load(f)
-            return ims, np.load(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME))
+            im_names = None
+            with open(os.path.join(CNN_FEATURE_SAVE_DIR, IMAGE_NAMES_FEATURE_EXTRACT), 'rb') as f:
+                im_names = pickle.load(f)
+            return im_names, np.load(os.path.join(CNN_FEATURE_SAVE_DIR, FORWARD_FEATURE_EXTRACT))
 
         # we "rip" off the final layers so we can extract the 4096-size feature vector
         # this layer is the 4th on the classifier half of the CNN
@@ -196,39 +202,39 @@ class ModelPipeline:
         ripped = self.cnn.classifier[:4]
         self.cnn.classifier = ripped
 
-        ims = os.listdir(IMAGE_DIR)
+        im_names = os.listdir(IMAGE_DIR)
         path = os.path.join(IMAGE_DIR, '{}')
 
         i = 0
         batch_size = 4
-        features = np.zeros((len(ims), 4096))
-        #  pbar = tqdm(total=len(ims))
-        pbar = CustomProgressBar(len(ims))
+        features = np.zeros((len(im_names), 4096))
+        #  pbar = tqdm(total=len(im_names))
+        pbar = CustomProgressBar(len(im_names))
 
         # this approach uses batching and should offer a speed-up over passing one image at a time by nearly 10x
         # runtime should be 8 minutes per 20k images on GPU
-        print(f'Running forward pass on {len(ims)} images...')
-        while i + batch_size < len(ims):
-            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(ims[i+j]), self.transformer) for j in range(batch_size)], 0)
+        print(f'Running forward pass on {len(im_names)} images...')
+        while i + batch_size < len(im_names):
+            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(im_names[i+j]), self.transformer) for j in range(batch_size)], 0)
             features[i:i+batch_size,:] = self.cnn(ims_as_tensors).cpu().detach().numpy()
             i += batch_size
             if i % 100 == 0:
                 pbar.update(100)
 
         # does the final batch of remaining images
-        if len(ims) - i != 0:
-            rem = len(ims) - i
-            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(ims[i+j]), self.transformer) for j in range(rem)], 0)
+        if len(im_names) - i != 0:
+            rem = len(im_names) - i
+            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(im_names[i+j]), self.transformer) for j in range(rem)], 0)
             features[i:i+rem,:] = self.cnn(ims_as_tensors).cpu().detach().numpy()
             i += rem
             pbar.update(rem)
 
         print()
         self.cnn.classifier = original
-        np.save(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME), features)
-        with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'image_names_feature_extraction.pkl'), 'wb') as f:
-            pickle.dump(ims, f)
-        return ims, features
+        np.save(os.path.join(CNN_FEATURE_SAVE_DIR, FORWARD_FEATURE_EXTRACT), features)
+        with open(os.path.join(CNN_FEATURE_SAVE_DIR, IMAGE_NAMES_FEATURE_EXTRACT), 'wb') as f:
+            pickle.dump(im_names, f)
+        return im_names, features
 
     def cluster_features(self, df, images, features, cluster_keys, image_key):
         """
@@ -243,13 +249,12 @@ class ModelPipeline:
 
             Returns: two items of equal length, the first being a list of grids and the second being a cluster-aggregated feature array of shape (NUM_grids, 4096)
         """
-        SAVE_NAME = 'grid_features.npy'
-        if SAVE_NAME in os.listdir(CNN_FEATURE_SAVE_DIR):
+        if GRID_FEATURES in os.listdir(CNN_FEATURE_SAVE_DIR):
             print('Loading saved features...')
             grids = None
-            with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'grid_names.pkl'), 'rb') as f:
+            with open(os.path.join(CNN_FEATURE_SAVE_DIR, GRID_NAMES), 'rb') as f:
                 grids = pickle.load(f)
-            return grids, np.load(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME))
+            return grids, np.load(os.path.join(CNN_FEATURE_SAVE_DIR, GRID_FEATURES))
 
         assert len(images) == len(features)
         if type(cluster_keys) is not list:
@@ -271,8 +276,8 @@ class ModelPipeline:
             clustered_feats[i,:] = group_feats
             grids.append([clust_lat, clust_lon])
 
-        np.save(os.path.join(CNN_FEATURE_SAVE_DIR, SAVE_NAME), clustered_feats)
-        with open(os.path.join(CNN_FEATURE_SAVE_DIR, 'grid_names.pkl'), 'wb') as f:
+        np.save(os.path.join(CNN_FEATURE_SAVE_DIR, GRID_FEATURES), clustered_feats)
+        with open(os.path.join(CNN_FEATURE_SAVE_DIR, GRID_NAMES), 'wb') as f:
             pickle.dump(grids, f)
         return grids, clustered_feats
 
@@ -286,12 +291,11 @@ class ModelPipeline:
         return self.ridge_consumption.predict(clustered_feats)
 
 
-
 if __name__ == '__main__':
     create_folders()
     mp = ModelPipeline()
 
-    arg = 'all'
+    arg = '--all'
     if len(sys.argv) >= 2:
         arg = sys.argv[1]
         assert arg in ['--all', '--extract-features', '--predict-consumption', '--predict-phone-consumption', '--predict-phone-density']

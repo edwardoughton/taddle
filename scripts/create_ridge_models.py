@@ -266,7 +266,7 @@ if __name__ == '__main__':
 
     create_folders()
 
-    arg = 'all'
+    arg = '--all'
     if len(sys.argv) >= 2:
         arg = sys.argv[1]
         assert arg in ['--all', '--preprocess', '--train', '--train-consumption', '--train-phone-consumption', '--train-phone-density']

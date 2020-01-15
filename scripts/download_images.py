@@ -80,8 +80,12 @@ def get_polygon_download_locations(polygon, number, seed=7):
     return points  # returns list of lat/lon pairs
 
 
-def generate_country_download_locations(country, num_per_grid=100):
+def generate_country_download_locations(min_population=100, num_per_grid=100):
+    """
+        Generates NUM_PER_GRID download locations for each grid with at least MIN_POPULATION people
+    """
     grid = gpd.read_file(os.path.join(GRID_DIR, 'grid.shp'))
+    grid = grid[grid['population' >= min_population]]
     lat_lon_pairs = grid['geometry'].apply(lambda polygon: get_polygon_download_locations(polygon, number=num_per_grid))
     centroids = grid['geometry'].centroid
 
@@ -150,7 +154,7 @@ def download_images(df):
 if __name__ == '__main__':
     create_folders()
 
-    arg = 'all'
+    arg = '--all'
     if len(sys.argv) >= 2:
         arg = sys.argv[1]
         assert arg in ['--all', '--generate-download-locations', '--download-images']

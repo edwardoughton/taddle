@@ -1,0 +1,1 @@
+GADM data, world_population, LSMS data, and Nightlights data will go in here. The last two are optional, however.
