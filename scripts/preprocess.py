@@ -21,8 +21,17 @@ CONFIG = configparser.ConfigParser()
 CONFIG.read(os.path.join(os.path.dirname(__file__), 'script_config.ini'))
 BASE_PATH = CONFIG['file_locations']['base_path']
 
-DATA_RAW = os.path.join(BASE_PATH, 'raw')
-DATA_PROCESSED = os.path.join(BASE_PATH, 'processed')
+# DATA_RAW = os.path.join(BASE_PATH, 'raw')
+# DATA_PROCESSED = os.path.join(BASE_PATH, 'processed')
+
+CONFIG = configparser.ConfigParser()
+CONFIG.read('script_config.ini')
+
+COUNTRY = CONFIG['DEFAULT']['COUNTRY']
+SHAPEFILE_DIR = f'data/{COUNTRY}/shapefile'
+GRID_DIR = f'data/{COUNTRY}/grid'
+IMAGE_DIR = f'data/{COUNTRY}/images'
+
 
 def process_country_shapes(country):
     """
@@ -30,12 +39,12 @@ def process_country_shapes(country):
     each country to each country folder.
 
     """
-    path_processed = os.path.join(DATA_PROCESSED, 'national_outline_{}.shp'.format(country))
+    path_processed = os.path.join(SHAPEFILE_DIR, 'national_outline_{}.shp'.format(country))
 
     if not os.path.exists(path_processed):
 
         print('Working on national outline')
-        path_raw = os.path.join(DATA_RAW, 'gadm36_levels_shp', 'gadm36_0.shp')
+        path_raw = os.path.join(BASE_PATH, 'raw', 'gadm36_levels_shp', 'gadm36_0.shp')
         countries = geopandas.read_file(path_raw)
 
         for name in countries.GID_0.unique():
@@ -69,16 +78,16 @@ def process_regions(country, gadm_level):
 
     """
     filename = 'regions_{}_{}.shp'.format(gadm_level, country)
-    path_processed = os.path.join(DATA_PROCESSED, filename)
+    path_processed = os.path.join(SHAPEFILE_DIR, filename)
 
     if not os.path.exists(path_processed):
 
         print('Working on regions')
         filename = 'gadm36_{}.shp'.format(gadm_level)
-        path_regions = os.path.join(DATA_RAW, 'gadm36_levels_shp', filename)
+        path_regions = os.path.join(BASE_PATH, 'raw', 'gadm36_levels_shp', filename)
         regions = geopandas.read_file(path_regions)
 
-        path_countries = os.path.join(DATA_PROCESSED, 'national_outline_{}.shp'.format(country))
+        path_countries = os.path.join(SHAPEFILE_DIR, 'national_outline_{}.shp'.format(country))
         countries = geopandas.read_file(path_countries)
 
         for name in countries.GID_0.unique():
@@ -166,10 +175,10 @@ def exclude_small_shapes(x,regionalized=False):
         return MultiPolygon(new_geom)
 
 
-def process_settlement_layer(single_country):
+def process_settlement_layer(single_country, country):
     """
     """
-    path_settlements = os.path.join(DATA_RAW, 'world_pop','ppp_2020_1km_Aggregated.tif')
+    path_settlements = os.path.join(BASE_PATH, 'raw', 'world_pop','ppp_2020_1km_Aggregated.tif')
 
     settlements = rasterio.open(path_settlements)
 
@@ -191,7 +200,7 @@ def process_settlement_layer(single_country):
                     "transform": out_transform,
                     "crs": 'epsg:4326'})
 
-    shape_path = os.path.join(DATA_PROCESSED, 'world_pop.tif')
+    shape_path = os.path.join(SHAPEFILE_DIR, '{}.tif'.format(country))
     with rasterio.open(shape_path, "w", **out_meta) as dest:
             dest.write(out_img)
 
@@ -298,14 +307,14 @@ if __name__ == '__main__':
     process_regions(country, gadm_level)
 
     print('Process settlement layer')
-    process_settlement_layer(single_country)
+    process_settlement_layer(single_country, country)
 
-    print('Processing World Bank Living Standards Measurement Survey')
-    path = os.path.join(DATA_RAW, 'lsms', 'malawi_2016')
-    df_uniques, df_combined = process_wb_survey_data(path)
+    # print('Processing World Bank Living Standards Measurement Survey')
+    # path = os.path.join(BASE_PATH, '..', 'lsms', 'malawi_2016')
+    # df_uniques, df_combined = process_wb_survey_data(path)
 
-    print('Writing data')
-    df_uniques.to_csv(os.path.join(DATA_PROCESSED,
-        'df_uniques.csv'), index=False)
-    df_combined.to_csv(os.path.join(DATA_PROCESSED,
-        'df_combined.csv'), index=False)
+    # print('Writing data')
+    # df_uniques.to_csv(os.path.join(DATA_PROCESSED,
+    #     'df_uniques.csv'), index=False)
+    # df_combined.to_csv(os.path.join(DATA_PROCESSED,
+    #     'df_combined.csv'), index=False)
