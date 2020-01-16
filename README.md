@@ -16,7 +16,7 @@ along with the `conda-forge` channel which has a host of pre-built libraries and
 
 Create a conda environment called `taddle`:
 
-    conda create --name taddle python=3.6 gdal geoio geopandas
+    conda create --name taddle python=3.6 gdal geoio geopandas rasterstats
 
 Activate the environment by running:
 

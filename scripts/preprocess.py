@@ -18,38 +18,33 @@ from fiona.crs import from_epsg
 from shapely.geometry import MultiPolygon, Polygon, mapping, box
 
 CONFIG = configparser.ConfigParser()
-CONFIG.read(os.path.join(os.path.dirname(__file__), 'script_config.ini'))
-BASE_PATH = CONFIG['file_locations']['base_path']
-
-# DATA_RAW = os.path.join(BASE_PATH, 'raw')
-# DATA_PROCESSED = os.path.join(BASE_PATH, 'processed')
-
-CONFIG = configparser.ConfigParser()
 CONFIG.read('script_config.ini')
 
 COUNTRY = CONFIG['DEFAULT']['COUNTRY']
-SHAPEFILE_DIR = f'data/{COUNTRY}/shapefile'
-GRID_DIR = f'data/{COUNTRY}/grid'
-IMAGE_DIR = f'data/{COUNTRY}/images'
+SHAPEFILE_DIR = f'countries/{COUNTRY}/shapefile'
 
 
-def process_country_shapes(country):
+def create_folders():
+    os.makedirs(f'countries/{COUNTRY}', exist_ok=True)
+    os.makedirs(SHAPEFILE_DIR, exist_ok=True)
+
+
+def process_country_shapes():
     """
     Created a set of global country shapes. Adds the single national boundary for
     each country to each country folder.
 
     """
-    path_processed = os.path.join(SHAPEFILE_DIR, 'national_outline_{}.shp'.format(country))
+    path_processed = os.path.join(SHAPEFILE_DIR, 'national_outline_{}.shp'.format(COUNTRY))
 
     if not os.path.exists(path_processed):
 
         print('Working on national outline')
-        path_raw = os.path.join(BASE_PATH, 'raw', 'gadm36_levels_shp', 'gadm36_0.shp')
+        path_raw = os.path.join('data', 'gadm36_levels_shp', 'gadm36_0.shp')
         countries = geopandas.read_file(path_raw)
 
         for name in countries.GID_0.unique():
-
-            if not name == country:
+            if not name == COUNTRY:
                 continue
 
             print('Working on {}'.format(name))
@@ -72,27 +67,27 @@ def process_country_shapes(country):
     return single_country
 
 
-def process_regions(country, gadm_level):
+def process_regions(gadm_level):
     """
     Function for processing subnational regions.
 
     """
-    filename = 'regions_{}_{}.shp'.format(gadm_level, country)
+    filename = 'regions_{}_{}.shp'.format(gadm_level, COUNTRY)
     path_processed = os.path.join(SHAPEFILE_DIR, filename)
 
     if not os.path.exists(path_processed):
 
         print('Working on regions')
         filename = 'gadm36_{}.shp'.format(gadm_level)
-        path_regions = os.path.join(BASE_PATH, 'raw', 'gadm36_levels_shp', filename)
+        path_regions = os.path.join('data', 'gadm36_levels_shp', filename)
         regions = geopandas.read_file(path_regions)
 
-        path_countries = os.path.join(SHAPEFILE_DIR, 'national_outline_{}.shp'.format(country))
+        path_countries = os.path.join(SHAPEFILE_DIR, 'national_outline_{}.shp'.format(COUNTRY))
         countries = geopandas.read_file(path_countries)
 
         for name in countries.GID_0.unique():
 
-            if not name == country:
+            if not name == COUNTRY:
                 continue
 
             print('Working on {}'.format(name))
@@ -175,10 +170,10 @@ def exclude_small_shapes(x,regionalized=False):
         return MultiPolygon(new_geom)
 
 
-def process_settlement_layer(single_country, country):
+def process_settlement_layer(single_country):
     """
     """
-    path_settlements = os.path.join(BASE_PATH, 'raw', 'world_pop','ppp_2020_1km_Aggregated.tif')
+    path_settlements = os.path.join('data', 'world_population','ppp_2020_1km_Aggregated.tif')
 
     settlements = rasterio.open(path_settlements)
 
@@ -198,13 +193,14 @@ def process_settlement_layer(single_country, country):
                     "height": out_img.shape[1],
                     "width": out_img.shape[2],
                     "transform": out_transform,
-                    "crs": 'epsg:4326'})
+                    "CRS": 'epsg:4326'})
 
-    shape_path = os.path.join(SHAPEFILE_DIR, '{}.tif'.format(country))
+    shape_path = os.path.join(SHAPEFILE_DIR, '{}.tif'.format(COUNTRY))
     with rasterio.open(shape_path, "w", **out_meta) as dest:
-            dest.write(out_img)
+        dest.write(out_img)
 
-    return print('Completed processing of settlement layer')
+    print('Completed processing of settlement layer')
+    return
 
 
 def process_wb_survey_data(path):
@@ -296,18 +292,17 @@ def process_wb_survey_data(path):
 
 
 if __name__ == '__main__':
-
-    country = 'MWI'
     gadm_level = 3
+    create_folders()
 
     print('Processing national shapes')
-    single_country = process_country_shapes(country)
+    single_country = process_country_shapes()
 
     print('Processing subnational shapes')
-    process_regions(country, gadm_level)
+    process_regions(gadm_level)
 
     print('Process settlement layer')
-    process_settlement_layer(single_country, country)
+    process_settlement_layer(single_country)
 
     # print('Processing World Bank Living Standards Measurement Survey')
     # path = os.path.join(BASE_PATH, '..', 'lsms', 'malawi_2016')

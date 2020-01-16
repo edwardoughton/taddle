@@ -10,6 +10,15 @@ api_key.txt
 *.pth
 *.joblib
 *.pkl
+countries/
+data/
+vis/figures*
+images/*
+scripts/script_config.ini
+cache
+*.zip
+results/*
+
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -140,12 +149,3 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-
-# Data
-data/*
-vis/figures*
-images/*
-scripts/script_config.ini
-cache
-*.zip
-results/*
