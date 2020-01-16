@@ -102,7 +102,7 @@ Runtime Guide
 ======================
 The slowest step will be downloading images (`scripts/download_images.py`). Downloading 20 images for each grid in Malawi led to a download size of 24,000. This took about 5 hours. **We have written the script so that if the download breaks for some reason, you can simply rerun the script and it will only download whatever is left to be downloaded.**
 
-The second slowest step will be passing the images through the CNN for feature extraction (`scripts/model_pipeline.py`). On a GPU, this should take about 10 minutes for 24,000 images. On a CPU, that runtime will be around 4 hours. **After this forward pass is done once, the result is saved to disk and will not have to be done again.** For some reason, we noticed `tdqm`, the progress bar library, was slowing down the forward pass by a 2x factor sometimes. We have written a replacement a simple progress "bar" for this part of the code, although it is not anything fancy.
+The second slowest step will be passing the images through the CNN for feature extraction (`scripts/model_pipeline.py`). On a GPU, this should take about 10 minutes for 24,000 images. On a CPU, that runtime will be around 4 hours. **After this forward pass is done once, the result is saved to disk and will not have to be done again.**
 
 
 Background and funding
