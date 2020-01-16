@@ -174,32 +174,35 @@ class ModelPipeline:
         im_names = os.listdir(IMAGE_DIR)
         path = os.path.join(IMAGE_DIR, '{}')
 
-        i = 0
-        batch_size = 4
-        predictions = np.zeros((len(im_names), 3))
-        # pbar = tqdm(total=len(im_names))
-        pbar = CustomProgressBar(len(im_names))
+        transformer = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
+        
+        batch_size = 8
+        num_workers = 4
+        
+        print('Initializing dataset and dataloader...')
+        dataset = ForwardPassDataset(IMAGE_DIR, transformer)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        image_order = dataset.image_list
+
+        predictions = np.zeros((len(image_order), 1))
 
         # this approach uses batching and should offer a speed-up over passing one image at a time by nearly 10x
-        # runtime should be 5-7 minutes vs 45+ for a full forward pass
-        while i + batch_size < len(im_names):
-            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(im_names[i+j]), self.transformer) for j in range(batch_size)], 0)
-            predictions[i:i+batch_size,:] = self.cnn(ims_as_tensors).cpu().detach().numpy()
-            i += batch_size
-            pbar.update(batch_size)
-
-        # does the final batch of remaining images
-        if len(im_names) - i != 0:
-            rem = len(im_names) - i
-            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(im_names[i+j]), self.transformer) for j in range(rem)], 0)
-            predictions[i:i+rem,:] = self.cnn(ims_as_tensors).cpu().detach().numpy()
-            i += rem
-            pbar.update(rem)
+        # runtime should be 5 minutes per 20k images on GPU
+        print(f'Running predictions on {len(image_order)} images...')
+        i = 0
+        for inputs, _ in tqdm(dataloader):
+            inputs = inputs.to(DEVICE)
+            outputs = self.cnn(inputs)
+            predictions[i:i+batch_size,:] = outputs.cpu().detach().numpy()
+            i += len(inputs)
 
         np.save(os.path.join(CNN_FEATURE_SAVE_DIR, FORWARD_CLASSIFICATIONS), predictions)
         with open(os.path.join(CNN_FEATURE_SAVE_DIR, IMAGE_NAMES_CLASSIFICATION), 'wb') as f:
-            pickle.dump(im_names, f)
-        return im_names, predictions
+            pickle.dump(image_order, f)
+        return image_order, predictions
 
     def extract_features(self):
         """
@@ -237,7 +240,7 @@ class ModelPipeline:
         features = np.zeros((len(image_order), 4096))
 
         # this approach uses batching and should offer a speed-up over passing one image at a time by nearly 10x
-        # runtime should be 8 minutes per 20k images on GPU
+        # runtime should be 5 minutes per 20k images on GPU
         print(f'Running forward pass on {len(image_order)} images...')
         i = 0
         for inputs, _ in tqdm(dataloader):
