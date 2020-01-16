@@ -61,7 +61,7 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f'Using {DEVICE} as backend...')
 
 def create_folders():
-    os.makedirs(f'countries/{COUNTRY}/results')
+    os.makedirs(f'countries/{COUNTRY}/results', exist_ok=True)
     os.makedirs(CNN_FEATURE_SAVE_DIR, exist_ok=True)
     os.makedirs(RIDGE_PHONE_DENSITY_SAVE_DIR, exist_ok=True)
     os.makedirs(RIDGE_PHONE_CONSUMPTION_SAVE_DIR, exist_ok=True)

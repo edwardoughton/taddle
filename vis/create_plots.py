@@ -27,30 +27,51 @@ CONFIG = configparser.ConfigParser()
 CONFIG.read('script_config.ini')
 
 COUNTRY = CONFIG['DEFAULT']['COUNTRY']
+RESULTS_DIR = f'countries/{COUNTRY}/results/'
 
 def create_folders():
-    os.makedirs(f'results/{COUNTRY}/figures/')
+    os.makedirs(os.path.join(RESULTS_DIR, 'figures'), exist_ok=True)
 
-def create_plot(country, metric):
+def create_plot(country, metric, min_population=100, under_color='b'):
+    """
+        This method creates a geospatial figure depicting the predictions for a given metric within a grid.
+        
+        `min_population`: the minimum population a grid should have to be included in the scale
+        `under_color`: the color to fill squares with populations under `min_population`
+        
+        Currently, the color scale terminates 3 standard deviations above and below the mean. This is to prevent outliers
+        with extremely high relative consumptions from dominating the linear color scale.
+    """
     print(f'creating plot for {metric}')
-    df_geo = gpd.read_file(f'data/{country}/grid/grid.shp')
+    df_geo = gpd.read_file(f'countries/{country}/grid/grid.shp')
     df_geo['centroid'] = df_geo['geometry'].centroid
     df_geo['centroid_lat'] = df_geo['centroid'].apply(lambda point: point.y)
     df_geo['centroid_lon'] = df_geo['centroid'].apply(lambda point: point.x)
-    preds = pd.read_csv(f'results/{country}/ridge_{metric}/predictions.csv')
-
-    prev_len = len(df_geo)
-    df_geo = merge_on_lat_lon(df_geo, preds, keys=['centroid_lat', 'centroid_lon'])
-    assert len(df_geo) == prev_len, print('Merging geo-dataframe with predictions failed')
+    preds = pd.read_csv(os.path.join(RESULTS_DIR, f'ridge_{metric}', 'predictions.csv'))
+    
+    if min_population is None:
+        df_geo['to_ignore'] = False
+    else:
+        to_use = df_geo['population'] > min_population
+        df_geo['to_ignore'] = True
+        df_geo['to_ignore'].loc[to_use] = False
+    
+    df_geo = merge_on_lat_lon(df_geo, preds, keys=['centroid_lat', 'centroid_lon'], how='left')
 
     geometry = df_geo['geometry']
     # if prediction is under 0, set to 0
     coloring_guide = df_geo[f'predicted_{metric}_pc']
     coloring_guide.loc[coloring_guide < 0] = 0
-
-    cmap = 'inferno'
-    vmin = coloring_guide.min()
-    vmax = coloring_guide.max()
+    vmin = coloring_guide.mean() - 3 * coloring_guide.std()
+    if vmin < 0 or vmin - 0 < 0.05:
+        vmin = 0
+    
+    coloring_guide.fillna(-1, inplace=True)
+    coloring_guide.loc[df_geo['to_ignore']] = -1
+    
+    cmap = cm.get_cmap('inferno')
+    cmap.set_under(under_color)
+    vmax = coloring_guide.mean() + 3 * coloring_guide.std()
 
     kwargs = {'vmin': vmin,
             'vmax': vmax,
@@ -69,11 +90,13 @@ def create_plot(country, metric):
     label = (metric +' per capita').replace('_', ' ')
     ax.set_title(f'Malawi Predicted {label.title() + units}', fontsize=18)
 
-    save_dir = f'results/{country}/figures/predicted_{metric}_per_capita.png'
+    save_dir = os.path.join(RESULTS_DIR, 'figures', f'predicted_{metric}_per_capita.png')
     print(f'Saving figure to {save_dir}')
     plt.savefig(save_dir)
 
 if __name__ == '__main__':
+    create_folders()
+    
     arg = '--all'
     if len(sys.argv) >= 2:
         arg = sys.argv[1]

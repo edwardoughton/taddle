@@ -32,8 +32,8 @@ CONFIG = configparser.ConfigParser()
 CONFIG.read('script_config.ini')
 
 COUNTRY = CONFIG['DEFAULT']['COUNTRY']
-GRID_DIR = f'data/{COUNTRY}/grid'
-IMAGE_DIR = f'data/{COUNTRY}/images'
+GRID_DIR = f'countries/{COUNTRY}/grid'
+IMAGE_DIR = f'countries/{COUNTRY}/images'
 
 ACCESS_TOKEN = None
 with open(CONFIG['DEFAULT']['ACCESS_TOKEN_DIR'], 'r') as f:
@@ -80,12 +80,12 @@ def get_polygon_download_locations(polygon, number, seed=7):
     return points  # returns list of lat/lon pairs
 
 
-def generate_country_download_locations(min_population=100, num_per_grid=100):
+def generate_country_download_locations(min_population=100, num_per_grid=20):
     """
         Generates NUM_PER_GRID download locations for each grid with at least MIN_POPULATION people
     """
     grid = gpd.read_file(os.path.join(GRID_DIR, 'grid.shp'))
-    grid = grid[grid['population' >= min_population]]
+    grid = grid[grid['population'] >= min_population]
     lat_lon_pairs = grid['geometry'].apply(lambda polygon: get_polygon_download_locations(polygon, number=num_per_grid))
     centroids = grid['geometry'].centroid
 
@@ -161,16 +161,16 @@ if __name__ == '__main__':
         
     if arg == '--all':
         print('Generating download locations...')
-        generate_country_download_locations(COUNTRY)
+        generate_country_download_locations()
         
         df_download = pd.read_csv(os.path.join(GRID_DIR, 'image_download_locs.csv'))
 
         print('Downloading images. Might take a while...')
         download_images(df_download)
         
-    elif arg == ['--generate-download-locations']:
+    elif arg == '--generate-download-locations':
         print('Generating download locations...')
-        generate_country_download_locations(COUNTRY)
+        generate_country_download_locations()
 
     elif arg == '--download-images':
         df_download = pd.read_csv(os.path.join(GRID_DIR, 'image_download_locs.csv'))

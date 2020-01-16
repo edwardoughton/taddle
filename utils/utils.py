@@ -19,7 +19,7 @@ from io import BytesIO
 import numpy as np
 import pandas as pd
 
-def merge_on_lat_lon(df1, df2, keys=['cluster_lat', 'cluster_lon']):
+def merge_on_lat_lon(df1, df2, keys=['cluster_lat', 'cluster_lon'], how='inner'):
     """
         Allows two dataframes to be merged on lat/lon
         Necessary because pandas has trouble merging on floats
@@ -35,7 +35,7 @@ def merge_on_lat_lon(df1, df2, keys=['cluster_lat', 'cluster_lon']):
     df2['merge_lon'] = (10000 * df2[keys[1]]).astype(int)
     
     df2.drop(keys, axis=1, inplace=True)
-    merged = pd.merge(df1, df2, on=['merge_lat', 'merge_lon'])
+    merged = pd.merge(df1, df2, on=['merge_lat', 'merge_lon'], how=how)
     merged.drop(['merge_lat', 'merge_lon'], axis=1, inplace=True)
     return merged
 

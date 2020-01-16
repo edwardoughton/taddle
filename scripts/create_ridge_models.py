@@ -31,7 +31,7 @@ import pickle
 # repo imports
 import sys
 sys.path.append('.')
-from utils import RidgeEnsemble
+from utils import RidgeEnsemble, merge_on_lat_lon
 
 import warnings
 warnings.filterwarnings('ignore')
@@ -41,21 +41,27 @@ CONFIG.read('script_config.ini')
 
 COUNTRY = CONFIG['DEFAULT']['COUNTRY']
 
-CLUSTER_DATA_DIR = f'LSMS/output/{COUNTRY}/cluster_data.csv'
-CLUSTER_PREDICTIONS_DIR = f'LSMS/output/{COUNTRY}/cluster_predictions.csv'
+LSMS_DIR = f'data/LSMS/{COUNTRY}/input'
+NIGHTLIGHTS_DIR = 'data/Nightlights/2013'
+CLUSTER_DATA_DIR = f'data/LSMS/{COUNTRY}/processed/cluster_data.csv'
+CLUSTER_PREDICTIONS_DIR = f'data/LSMS/{COUNTRY}/output/cluster_predictions.csv'
 
-# Malawi Purchasing Power Parity 2013
-PPP_2013 = 116.28
+# Purchasing Power Adjustment
+PPP = float(CONFIG['DEFAULT']['PPP'])
+
+CNN_LSMS_CLUSTER_FEATS = f'data/LSMS/{COUNTRY}/processed/cluster_feats.npy'
+CNN_LSMS_CLUSTER_ORDER = f'data/LSMS/{COUNTRY}/processed/cluster_order.pkl'
 
 def create_folders():
-    os.makedirs(f'LSMS/output/{COUNTRY}', exist_ok=True)
+    os.makedirs(f'data/LSMS/{COUNTRY}/processed', exist_ok=True)
+    os.makedirs(f'data/LSMS/{COUNTRY}/output', exist_ok=True)
 
 def create_space(lat, lon):
     # these are pulled from the paper to make the 10km^2 area
     return lat - (180/math.pi)*(5000/6378137), lon - (180/math.pi)*(5000/6378137)/math.cos(lat), \
             lat + (180/math.pi)*(5000/6378137), lon + (180/math.pi)*(5000/6378137)/math.cos(lat)
 
-def prepare_data(lsms_path, nightlights_path):
+def prepare_data():
     """
         Preprocessing script that prepares the data to be passed to the ridge models.
         Refer to the "ipynb" folder for the same code but in a more explorable format, 
@@ -64,20 +70,20 @@ def prepare_data(lsms_path, nightlights_path):
     if os.path.exists(CLUSTER_DATA_DIR):
         print('data has already been pre-processed...')
         return
-
-    df = pd.read_stata(os.path.join(lsms_path, 'IHS4 Consumption Aggregate.dta'))
-    df['persons_in_household'] = (df['rexpagg']/df['rexpaggpc']).astype(int)
+    print('preprocessing...')
+    df = pd.read_stata(os.path.join(LSMS_DIR, 'IHS4 Consumption Aggregate.dta'))
+    df['persons_in_household'] = df['rexpagg']/df['rexpaggpc']
     df['annual_consumption_hh'] = df['rexpagg']
-    df['annual_consumption_hh'] /= PPP_2013 # accounting for purchasing power parity
+    df['annual_consumption_hh'] /= PPP # accounting for purchasing power parity
     df['annual_phone_consumption_hh'] = df['rexp_cat083']
-    df['annual_phone_consumption_hh'] = df['annual_phone_consumption_hh']/PPP_2013
+    df['annual_phone_consumption_hh'] = df['annual_phone_consumption_hh']/PPP
     df = df[['case_id', 'annual_consumption_hh', 'annual_phone_consumption_hh', 'persons_in_household']] # grab these columns
 
-    df_geo = pd.read_stata(os.path.join(lsms_path, 'HouseholdGeovariables_stata11/HouseholdGeovariablesIHS4.dta'))
+    df_geo = pd.read_stata(os.path.join(LSMS_DIR, 'HouseholdGeovariables_stata11/HouseholdGeovariablesIHS4.dta'))
     df_cords = df_geo[['case_id', 'HHID', 'lat_modified', 'lon_modified']]
     df_cords.rename(columns={'lat_modified': 'lat', 'lon_modified': 'lon'}, inplace=True)
 
-    df_hhf = pd.read_stata(f'{lsms_path}HH_MOD_F.dta')
+    df_hhf = pd.read_stata(os.path.join(LSMS_DIR, 'HH_MOD_F.dta'))
     df_hhf = df_hhf[['case_id', 'HHID', 'hh_f34', 'hh_f35']]
     df_hhf.rename(columns={'hh_f34': 'cellphones_ph', 'hh_f35': 'estimated_annual_phone_cost_ph'}, inplace=True)
     
@@ -102,7 +108,7 @@ def prepare_data(lsms_path, nightlights_path):
     rename = {c: 'cluster_' + c for c in df_clusters.columns}
     df_clusters.rename(columns=rename, inplace=True)
 
-    img = geoio.GeoImage(os.path.join(nightlights_path, 'F182013.v4c_web.stable_lights.avg_vis.tif'))
+    img = geoio.GeoImage(os.path.join(NIGHTLIGHTS_DIR, 'F182013.v4c_web.stable_lights.avg_vis.tif'))
     im_array = np.squeeze(img.get_data())
 
     cluster_nightlights = []
@@ -121,20 +127,28 @@ def prepare_data(lsms_path, nightlights_path):
 
     # save preprocessed csv
     df_clusters.to_csv(CLUSTER_DATA_DIR, index=False)
+    print(f'Saved preprocessing to {CLUSTER_DATA_DIR}')
 
 
 class CreateRidge:
-    def __init__(self, cnn_cluster_feats_dir, cnn_cluster_order_dir):
+    def __init__(self):
         """
             This code has been adapted from Jean et al
         """
-        self.cluster_feats = np.load(cnn_cluster_feats_dir)
-        self.cluster_order = pickle.load(open(cnn_cluster_order_dir, 'rb'))
+        self.cluster_feats = np.load(CNN_LSMS_CLUSTER_FEATS)
+        self.cluster_order = pickle.load(open(CNN_LSMS_CLUSTER_ORDER, 'rb'))
         self.cluster_data = pd.read_csv(CLUSTER_DATA_DIR)
-        # ensure that the cluster data features line up with the cnn aggregated features one-to-one
-        assert self.cluster_data[['cluster_lat', 'cluster_lon']].values.tolist() == self.cluster_order, print('CNN features do not align orderwise with cluster data')
-        self.cluster_results = self.cluster_data.copy()
+        
+        # makes sure the cluster order matches the cluster data one-to-one
+        tmp = pd.DataFrame()
+        tmp['cluster_lat'] = [x[0] for x in self.cluster_order]
+        tmp['cluster_lon'] = [x[1] for x in self.cluster_order]
+        tmp['feat_index'] = np.arange(len(tmp))
+        res = merge_on_lat_lon(self.cluster_data, tmp)
+        assert len(res) == len(self.cluster_data), print('Cluster order does not match preprocessed clusters.csv')
+        self.cluster_data = res.sort_values('feat_index', ascending=True).drop('feat_index', axis=1)
 
+        self.cluster_results = self.cluster_data.copy()
         self.metric_to_preprocessed_name = {
             'consumption': 'cluster_annual_consumption_pc',
             'phone_consumption': 'cluster_annual_phone_consumption_pc',
@@ -144,6 +158,7 @@ class CreateRidge:
     def train_all(self):
         for metric in ['consumption', 'phone_consumption', 'phone_density']:
             self.train(metric)
+        print(f'Saving predictions to {CLUSTER_PREDICTIONS_DIR})
         self.cluster_results.to_csv(CLUSTER_PREDICTIONS_DIR, index=False)
 
     def train(self, metric):
@@ -258,24 +273,20 @@ class CreateRidge:
 
 
 if __name__ == '__main__':
-    lsms_path = 'LSMS/input/malawi/'
-    nightlights_path = 'LSMS/Nightlights/2013/'
-    cnn_cluster_feats_dir = 'cnn/predicting-poverty-replication/cluster_feats.npy'
-    cnn_cluster_order_dir = 'cnn/predicting-poverty-replication/cluster_order.pkl'
-    assert os.path.isfile(cnn_cluster_feats_dir), print('Make sure you have run the sub-repository `predicting-poverty-replication`')
-
     create_folders()
 
     arg = '--all'
     if len(sys.argv) >= 2:
         arg = sys.argv[1]
         assert arg in ['--all', '--preprocess', '--train', '--train-consumption', '--train-phone-consumption', '--train-phone-density']
-
-    if arg in ['--all', '--preprocess']:
-        prepare_data(lsms_path, nightlights_path)
     
+    prepare_data()
+    if arg == '--preprocess':
+        exit(0)
+        
+    assert os.path.isfile(CNN_LSMS_CLUSTER_FEATS), print(f'Make sure you have applied the CNN on the cluster images and saved the result to {CNN_LSMS_CLUSTER_FEATS}`')
     if arg == '--all' or '--train' in arg:
-        cr = CreateRidge(cnn_cluster_feats_dir, cnn_cluster_order_dir)
+        cr = CreateRidge()
         
         if arg in ['--all', '--train']:
             cr.train_all()
