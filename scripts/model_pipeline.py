@@ -29,7 +29,7 @@ warnings.filterwarnings('ignore')
 # repo imports
 import sys
 sys.path.append('.')
-from utils import RidgeEnsemble, CustomProgressBar
+from utils import RidgeEnsemble
 
 CONFIG = configparser.ConfigParser()
 CONFIG.read('script_config.ini')
@@ -67,10 +67,29 @@ def create_folders():
     os.makedirs(RIDGE_PHONE_CONSUMPTION_SAVE_DIR, exist_ok=True)
     os.makedirs(RIDGE_CONSUMPTION_SAVE_DIR, exist_ok=True)
 
-def filename_to_im_tensor(file, transformer):
-    im = plt.imread(file)[:,:,:3]
-    im = transformer(im)
-    return im[None].to(DEVICE)
+# custom dataset for fast image loading and processing
+class ForwardPassDataset(torch.utils.data.Dataset):
+    def __init__(self, image_dir, transformer):
+        self.image_dir = image_dir
+        self.image_list = os.listdir(self.image_dir)
+        self.transformer = transformer
+
+    def __len__(self):
+        return len(self.image_list)
+
+    def __getitem__(self, index):
+        image_name = self.image_list[index]
+
+        # Load image
+        X = self.filename_to_im_tensor(self.image_dir + '/' + image_name)
+        
+        # dataloaders need to return a label, but for the forward pass we don't really care
+        return X, -1
+    
+    def filename_to_im_tensor(self, file):
+        im = plt.imread(file)[:,:,:3]
+        im = self.transformer(im)
+        return im
 
 class ModelPipeline:
     def __init__(self):
@@ -201,40 +220,38 @@ class ModelPipeline:
         original = self.cnn.classifier
         ripped = self.cnn.classifier[:4]
         self.cnn.classifier = ripped
-
-        im_names = os.listdir(IMAGE_DIR)
-        path = os.path.join(IMAGE_DIR, '{}')
-
-        i = 0
-        batch_size = 4
-        features = np.zeros((len(im_names), 4096))
-        #  pbar = tqdm(total=len(im_names))
-        pbar = CustomProgressBar(len(im_names))
+        
+        transformer = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
+        
+        batch_size = 8
+        num_workers = 4
+        
+        print('Initializing dataset and dataloader...')
+        dataset = ForwardPassDataset(IMAGE_DIR, transformer)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        image_order = dataset.image_list
+        
+        features = np.zeros((len(image_order), 4096))
 
         # this approach uses batching and should offer a speed-up over passing one image at a time by nearly 10x
         # runtime should be 8 minutes per 20k images on GPU
-        print(f'Running forward pass on {len(im_names)} images...')
-        while i + batch_size < len(im_names):
-            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(im_names[i+j]), self.transformer) for j in range(batch_size)], 0)
-            features[i:i+batch_size,:] = self.cnn(ims_as_tensors).cpu().detach().numpy()
-            i += batch_size
-            if i % 100 == 0:
-                pbar.update(100)
-
-        # does the final batch of remaining images
-        if len(im_names) - i != 0:
-            rem = len(im_names) - i
-            ims_as_tensors = torch.cat([filename_to_im_tensor(path.format(im_names[i+j]), self.transformer) for j in range(rem)], 0)
-            features[i:i+rem,:] = self.cnn(ims_as_tensors).cpu().detach().numpy()
-            i += rem
-            pbar.update(rem)
+        print(f'Running forward pass on {len(image_order)} images...')
+        i = 0
+        for inputs, _ in tqdm(dataloader):
+            inputs = inputs.to(DEVICE)
+            outputs = self.cnn(inputs)
+            features[i:i+len(inputs),:] = outputs.cpu().detach().numpy()
+            i += len(inputs)
 
         print()
         self.cnn.classifier = original
         np.save(os.path.join(CNN_FEATURE_SAVE_DIR, FORWARD_FEATURE_EXTRACT), features)
         with open(os.path.join(CNN_FEATURE_SAVE_DIR, IMAGE_NAMES_FEATURE_EXTRACT), 'wb') as f:
-            pickle.dump(im_names, f)
-        return im_names, features
+            pickle.dump(image_order, f)
+        return image_order, features
 
     def cluster_features(self, df, images, features, cluster_keys, image_key):
         """
@@ -299,9 +316,10 @@ if __name__ == '__main__':
     if len(sys.argv) >= 2:
         arg = sys.argv[1]
         assert arg in ['--all', '--extract-features', '--predict-consumption', '--predict-phone-consumption', '--predict-phone-density']
-
+        
     if arg == '--extract-features':
         mp.extract_features()
+        exit(0)
 
     elif arg == '--predict-consumption':
         mp.run_pipeline(metric='consumption')

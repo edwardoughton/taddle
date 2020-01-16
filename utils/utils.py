@@ -66,17 +66,4 @@ class ImageryDownloader:
         assert res.status_code < 400, print(f'Error - failed to download {lat}, {long}, {zoom}')
         image = plt.imread(BytesIO(res.content))
         return image
-    
-class CustomProgressBar:
-    """
-    Made a custom progress "bar" because tqdm was slowing down my forward pass speed by a 2x factor...
-    Really just a rudimentary carriage return printer :)
-    """
-    def __init__(self, total):
-        self.total = total
-        self.cur = 0
-        
-    def update(self, amount):
-        self.cur += amount
-        print(f'\t {round(self.cur*100/self.total, 2)}%', end='\r')
 
