@@ -4,12 +4,11 @@ Pass downloaded images through the model pipeline, namely:
     - aggregate cluster-level features
     - use ridge models to predict phone_consumption, phone_density, or consumption
 
-Written by Jatin Mathur
+Written by Jatin Mathur & Ed Oughton
 
 Winter 2020
 
 """
-
 import configparser
 import torch
 import torch.nn as nn
@@ -60,7 +59,12 @@ GRID_NAMES = 'grid_names.pkl'
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f'Using {DEVICE} as backend...')
 
+
 def create_folders():
+    """
+    Function to create desired folders.
+
+    """
     os.makedirs(f'countries/{COUNTRY}/results', exist_ok=True)
     os.makedirs(CNN_FEATURE_SAVE_DIR, exist_ok=True)
     os.makedirs(RIDGE_PHONE_DENSITY_SAVE_DIR, exist_ok=True)
@@ -82,30 +86,59 @@ class ForwardPassDataset(torch.utils.data.Dataset):
 
         # Load image
         X = self.filename_to_im_tensor(self.image_dir + '/' + image_name)
-        
-        # dataloaders need to return a label, but for the forward pass we don't really care
+
+        # dataloaders need to return a label, but for the forward pass
+        # we don't really care
         return X, -1
-    
+
     def filename_to_im_tensor(self, file):
         im = plt.imread(file)[:,:,:3]
         im = self.transformer(im)
         return im
 
+
 class ModelPipeline:
+    """
+    Meta Class for the model pipeline.
+
+    Attributes
+    ----------
+    cnn :
+        Convolutional Neural Network.
+    transformer :
+        Composes several transforms together.
+    ridge_phone_density :
+        Ridge regression model for phone density.
+    ridge_phone_consumption :
+        Ridge regression model for phone consumption.
+    ridge_consumption :
+        Ridge regression model for consumption.
+
+    """
     def __init__(self):
         print('loading CNN...')
         self.cnn = torch.load(CNN_DIR, map_location=DEVICE).eval()
         self.transformer = transforms.Compose([
             transforms.ToTensor(),
-            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-        ])
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
+
         print('loading Ridge Regression models...')
         self.ridge_phone_density = joblib.load(RIDGE_PHONE_DENSITY_DIR)
         self.ridge_phone_consumption = joblib.load(RIDGE_PHONE_CONSUMPTION_DIR)
         self.ridge_consumption = joblib.load(RIDGE_CONSUMPTION_DIR)
         print()
 
+
     def run_pipeline(self, metric):
+        """
+        Method to run the entire data pipeline.
+
+        Parameters
+        ----------
+        metric : string
+            Name of desired metric we wish to predict.
+
+        """
         assert metric in ['phone_density', 'phone_consumption', 'consumption']
         print(f'Running prediction pipeline on metric: {metric}')
         # check to see if clustered feats already exist
@@ -120,15 +153,20 @@ class ModelPipeline:
             print('Reading reference dataframe...')
             try:
                 df = pd.read_csv(os.path.join(GRID_DIR, 'image_download_locs.csv'))
-            except Exception as e:
-                logging.error('Make sure there is a file called image_download_locs.csv in ' + GRID_DIR, exc_info=True)
+            except Exception:
+                logging.error(
+                    'Make sure there is a file called image_download_locs.csv in ' +
+                    GRID_DIR, exc_info=True)
                 exit(1)
 
             print('Extracting features using ' + IMAGE_DIR + ' as the image directory...')
             im_names, features = self.extract_features()
 
             print('Clustering the extracted features using the reference dataframe...')
-            grids, grid_features = self.cluster_features(df, im_names, features, cluster_keys=['centroid_lat', 'centroid_lon'], image_key='image_name')
+            grids, grid_features = self.cluster_features(
+                                    df, im_names, features,
+                                    cluster_keys=['centroid_lat', 'centroid_lon'],
+                                    image_key='image_name')
 
         print('Generating predictions using Ridge Regression model for given metric...')
         predictions = None
@@ -145,7 +183,8 @@ class ModelPipeline:
             predictions = self.predict_consumption(grid_features)
             SAVE_DIR = RIDGE_CONSUMPTION_SAVE_DIR
 
-        assert predictions is not None and SAVE_DIR is not None and len(grids) == len(predictions)
+        assert predictions is not None and SAVE_DIR is not None and \
+            len(grids) == len(predictions)
 
         print('Saving predictions to ' + os.path.join(SAVE_DIR, 'predictions.csv'))
         columns = ['centroid_lat', 'centroid_lon', f'predicted_{metric}_pc']
@@ -160,16 +199,25 @@ class ModelPipeline:
 
     def predict_nightlights(self):
         """
-            Obtains nightlight predictions for all the images.
+        Method to obtain a nightlight prediction for all images.
 
-            Return: two items of equal length, one being the list of images and the other an array of shape (len(images), NUM_CLASSES)
+        Returns
+        -------
+        image_order : list
+            List of images.
+        features : Array
+            Array of shape (len(images), NUM_CLASSES).
+
         """
         if FORWARD_CLASSIFICATIONS in os.listdir(CNN_FEATURE_SAVE_DIR):
             print('Loading saved classifications...')
             im_names = None
-            with open(os.path.join(CNN_FEATURE_SAVE_DIR, IMAGE_NAMES_CLASSIFICATION), 'rb') as f:
+            path = os.path.join(CNN_FEATURE_SAVE_DIR, IMAGE_NAMES_CLASSIFICATION)
+            with open(path , 'rb') as f:
                 im_names = pickle.load(f)
-            return im_names, np.load(os.path.join(CNN_FEATURE_SAVE_DIR, FORWARD_CLASSIFICATIONS))
+
+            return im_names, np.load(os.path.join(
+                CNN_FEATURE_SAVE_DIR, FORWARD_CLASSIFICATIONS))
 
         im_names = os.listdir(IMAGE_DIR)
         path = os.path.join(IMAGE_DIR, '{}')
@@ -178,18 +226,20 @@ class ModelPipeline:
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
-        
+
         batch_size = 8
         num_workers = 4
-        
+
         print('Initializing dataset and dataloader...')
         dataset = ForwardPassDataset(IMAGE_DIR, transformer)
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
+            shuffle=False, num_workers=num_workers)
         image_order = dataset.image_list
 
         predictions = np.zeros((len(image_order), 1))
 
-        # this approach uses batching and should offer a speed-up over passing one image at a time by nearly 10x
+        # this approach uses batching and should offer a speed-up over passing
+        # one image at a time by nearly 10x
         # runtime should be 5 minutes per 20k images on GPU
         print(f'Running predictions on {len(image_order)} images...')
         i = 0
@@ -199,48 +249,64 @@ class ModelPipeline:
             predictions[i:i+batch_size,:] = outputs.cpu().detach().numpy()
             i += len(inputs)
 
-        np.save(os.path.join(CNN_FEATURE_SAVE_DIR, FORWARD_CLASSIFICATIONS), predictions)
-        with open(os.path.join(CNN_FEATURE_SAVE_DIR, IMAGE_NAMES_CLASSIFICATION), 'wb') as f:
+        path = os.path.join(CNN_FEATURE_SAVE_DIR, FORWARD_CLASSIFICATIONS)
+        np.save(path, predictions)
+
+        path = os.path.join(CNN_FEATURE_SAVE_DIR, IMAGE_NAMES_CLASSIFICATION)
+        with open(path, 'wb') as f:
             pickle.dump(image_order, f)
+
         return image_order, predictions
+
 
     def extract_features(self):
         """
-            Obtains feature vectors for all the images.
-            Saves results to disk for safekeeping as this can be a long step.
+        Method to obtain feature vectors for all images. Saves results to
+        disk for safekeeping as this step can take a signficiant amount of
+        time.
 
-            Return: two items of equal length, one being the list of images and the other an array of shape (len(images), 4096)
+        Returns
+        -------
+        image_order : list
+            List of images.
+        features : Array
+            Array of shape (len(images), 4096).
+
         """
         if FORWARD_FEATURE_EXTRACT in os.listdir(CNN_FEATURE_SAVE_DIR):
             print('Loading saved features...')
             im_names = None
-            with open(os.path.join(CNN_FEATURE_SAVE_DIR, IMAGE_NAMES_FEATURE_EXTRACT), 'rb') as f:
+            path = os.path.join(CNN_FEATURE_SAVE_DIR, IMAGE_NAMES_FEATURE_EXTRACT)
+            with open(path, 'rb') as f:
                 im_names = pickle.load(f)
-            return im_names, np.load(os.path.join(CNN_FEATURE_SAVE_DIR, FORWARD_FEATURE_EXTRACT))
+            path = os.path.join(CNN_FEATURE_SAVE_DIR, FORWARD_FEATURE_EXTRACT)
+            return im_names, np.load(path)
 
-        # we "rip" off the final layers so we can extract the 4096-size feature vector
-        # this layer is the 4th on the classifier half of the CNN
+        # we "rip" off the final layers so we can extract the 4096-size feature
+        # vector this layer is the 4th on the classifier half of the CNN
         original = self.cnn.classifier
         ripped = self.cnn.classifier[:4]
         self.cnn.classifier = ripped
-        
+
         transformer = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
-        
+
         batch_size = 8
         num_workers = 4
-        
+
         print('Initializing dataset and dataloader...')
         dataset = ForwardPassDataset(IMAGE_DIR, transformer)
-        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+        dataloader = torch.utils.data.DataLoader(dataset, batch_size=batch_size,
+                        shuffle=False, num_workers=num_workers)
         image_order = dataset.image_list
-        
+
         features = np.zeros((len(image_order), 4096))
 
-        # this approach uses batching and should offer a speed-up over passing one image at a time by nearly 10x
-        # runtime should be 5 minutes per 20k images on GPU
+        # this approach uses batching and should offer a speed-up over passing one
+        # image at a time by nearly 10x runtime should be 5 minutes per 20k images
+        # on GPU
         print(f'Running forward pass on {len(image_order)} images...')
         i = 0
         for inputs, _ in tqdm(dataloader):
@@ -251,23 +317,45 @@ class ModelPipeline:
 
         print()
         self.cnn.classifier = original
-        np.save(os.path.join(CNN_FEATURE_SAVE_DIR, FORWARD_FEATURE_EXTRACT), features)
-        with open(os.path.join(CNN_FEATURE_SAVE_DIR, IMAGE_NAMES_FEATURE_EXTRACT), 'wb') as f:
+        path = os.path.join(CNN_FEATURE_SAVE_DIR, FORWARD_FEATURE_EXTRACT)
+        np.save(path, features)
+
+        path = os.path.join(CNN_FEATURE_SAVE_DIR, IMAGE_NAMES_FEATURE_EXTRACT)
+        with open(path, 'wb') as f:
             pickle.dump(image_order, f)
+
         return image_order, features
+
 
     def cluster_features(self, df, images, features, cluster_keys, image_key):
         """
-            Aggregates the features based on a key(s) in the dataframe (specified by cluster_keys) against the image column in the dataframe (specified by image_key)
-            - df: the dataframe
-            - images: list of images that should have been outputted by extract_features
-            - features: array of features created by extract_features
-            - cluster_keys: key(s) to cluster on
-            - image_key: key which has image names
+        Aggregates the features based on a key(s) in the dataframe (specified by
+        cluster_keys) against the image column in the dataframe (specified by
+        image_key).
 
-            df[image_key] should not contain any images that are not in the list of image names
+        df[image_key] should not contain any images that are not in the list
+        of image names.
 
-            Returns: two items of equal length, the first being a list of grids and the second being a cluster-aggregated feature array of shape (NUM_grids, 4096)
+        Parameters
+        ----------
+        df :  dataframe
+            the dataframe
+        images : list
+            List of images returned from extract_features.
+        features : Array
+            Array of features created by extract_features.
+        cluster_keys : ???
+            Key(s) to cluster on.
+        image_key : ???
+            Key containing image names.
+
+        Returns
+        -------
+        grids : list
+            List of grids.
+        clustered_feats : ???
+            Cluster-aggregated feature array of shape (NUM_grids, 4096).
+
         """
         if GRID_FEATURES in os.listdir(CNN_FEATURE_SAVE_DIR):
             print('Loading saved features...')
@@ -280,10 +368,12 @@ class ModelPipeline:
         if type(cluster_keys) is not list:
             cluster_keys = [cluster_keys]
 
-        df_lookup = pd.DataFrame.from_dict({image_key: images, 'feature_index': [i for i in range(len(images))]})
+        df_lookup = pd.DataFrame.from_dict(
+            {image_key: images, 'feature_index': [i for i in range(len(images))]})
         prev_shape = len(df)
         df = pd.merge(df, df_lookup, on=image_key)
-        assert prev_shape == len(df), print('The reference dataframe lookup did not merge with the images downloaded')
+        assert prev_shape == len(df), print('The reference dataframe lookup did \
+            not merge with the images downloaded')
 
         grouped = df.groupby(cluster_keys)
         clustered_feats = np.zeros((len(grouped), 4096))
@@ -299,27 +389,86 @@ class ModelPipeline:
         np.save(os.path.join(CNN_FEATURE_SAVE_DIR, GRID_FEATURES), clustered_feats)
         with open(os.path.join(CNN_FEATURE_SAVE_DIR, GRID_NAMES), 'wb') as f:
             pickle.dump(grids, f)
+
         return grids, clustered_feats
 
+
     def predict_phone_density(self, clustered_feats):
-        return self.ridge_phone_density.predict(clustered_feats)
+        """
+        Method for pedicting phone density.
+
+        Parameters
+        ----------
+        clustered_feats : ???
+            Clustered features.
+
+        Returns
+        -------
+        predicted_phones :
+            The predicted number of phones.
+
+        """
+        predicted_phones = self.ridge_phone_density.predict(clustered_feats)
+
+        return predicted_phones
+
 
     def predict_phone_consumption(self, clustered_feats):
-        return self.ridge_phone_consumption.predict(clustered_feats)
+        """
+        Method for pedicting phone density.
+
+        Parameters
+        ----------
+        clustered_feats : ???
+            Clustered features.
+
+        Returns
+        -------
+        predicted_phone_consumption :
+            The predicted phone consumption in an area ($).
+
+        """
+        predicted_phone_consumption = self.ridge_phone_consumption.predict(
+            clustered_feats)
+
+        return predicted_phone_consumption
+
 
     def predict_consumption(self, clustered_feats):
-        return self.ridge_consumption.predict(clustered_feats)
+        """
+        Method for pedicting phone density.
+
+        Parameters
+        ----------
+        clustered_feats : ???
+            Clustered features.
+
+        Returns
+        -------
+        predicted_consumption : ???
+            The predicted consumption in an area ($).
+
+        """
+        predicted_consumption = self.ridge_consumption.predict(
+            clustered_feats)
+
+        return predicted_consumption
 
 
 if __name__ == '__main__':
+
     create_folders()
+
     mp = ModelPipeline()
 
     arg = '--all'
     if len(sys.argv) >= 2:
         arg = sys.argv[1]
-        assert arg in ['--all', '--extract-features', '--predict-consumption', '--predict-phone-consumption', '--predict-phone-density']
-        
+        assert arg in [
+            '--all', '--extract-features', '--predict-consumption',
+            '--predict-phone-consumption', '--predict-phone-density'
+        ]
+
     if arg == '--extract-features':
         mp.extract_features()
         exit(0)
