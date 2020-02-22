@@ -24,11 +24,18 @@ SHAPEFILE_DIR = f'countries/{COUNTRY}/shapefile'
 GRID_DIR = f'countries/{COUNTRY}/grid'
 
 def create_folders():
+    """
+    Function to create new folder.
+
+    """
     os.makedirs(GRID_DIR, exist_ok=True)
 
 
 def generate_grid(country):
+    """
+    Generate a 10x10km spatial grid for the chosen country.
 
+    """
     filename = 'national_outline_{}.shp'.format(country)
     country_outline = gpd.read_file(os.path.join(SHAPEFILE_DIR, filename))
 
@@ -64,13 +71,22 @@ def generate_grid(country):
 
 
 def query_settlement_layer(grid):
+    """
+    Query the settlement layer to get an estimated population for each grid square.
+
+    """
     path = os.path.join(SHAPEFILE_DIR, f'{COUNTRY}.tif')
-    grid['population'] = pd.DataFrame(zonal_stats(vectors=grid['geometry'], raster=path, stats='sum'))['sum']
+
+    grid['population'] = pd.DataFrame(
+        zonal_stats(vectors=grid['geometry'], raster=path, stats='sum'))['sum']
+
     grid = grid.replace([np.inf, -np.inf], np.nan)
 
     return grid
 
 
 if __name__ == '__main__':
+
     create_folders()
+
     generate_grid(COUNTRY)

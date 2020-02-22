@@ -31,16 +31,18 @@ def create_folders():
 
 def process_country_shapes():
     """
-    Created a set of global country shapes. Adds the single national boundary for
-    each country to each country folder.
+    Created a set of global country shapes. Adds the single
+    national boundary for each country to each country folder.
 
     """
-    path_processed = os.path.join(SHAPEFILE_DIR, 'national_outline_{}.shp'.format(COUNTRY))
+    path_processed = os.path.join(
+        SHAPEFILE_DIR, 'national_outline_{}.shp'.format(COUNTRY))
 
     if not os.path.exists(path_processed):
 
         print('Working on national outline')
-        path_raw = os.path.join('data', 'gadm36_levels_shp', 'gadm36_0.shp')
+        path_raw = os.path.join(
+            'data', 'gadm36_levels_shp', 'gadm36_0.shp')
         countries = geopandas.read_file(path_raw)
 
         for name in countries.GID_0.unique():
@@ -51,12 +53,14 @@ def process_country_shapes():
             single_country = countries[countries.GID_0 == name]
 
             print('Excluding small shapes')
-            single_country['geometry'] = single_country.apply(exclude_small_shapes,axis=1)
+            single_country['geometry'] = single_country.apply(
+                exclude_small_shapes,axis=1)
 
             print('Simplifying geometries')
-            single_country['geometry'] = single_country.simplify(tolerance = 0.005,
-                preserve_topology=True).buffer(0.01).simplify(tolerance = 0.005,
-                preserve_topology=True)
+            single_country['geometry'] = single_country.simplify(
+                tolerance = 0.005, preserve_topology=True
+                ).buffer(0.01).simplify(tolerance = 0.005,
+                    preserve_topology=True)
 
             print('Writing national outline to file')
             single_country.to_file(path_processed, driver='ESRI Shapefile')
@@ -79,10 +83,12 @@ def process_regions(gadm_level):
 
         print('Working on regions')
         filename = 'gadm36_{}.shp'.format(gadm_level)
-        path_regions = os.path.join('data', 'gadm36_levels_shp', filename)
+        path_regions = os.path.join(
+            'data', 'gadm36_levels_shp', filename)
         regions = geopandas.read_file(path_regions)
 
-        path_countries = os.path.join(SHAPEFILE_DIR, 'national_outline_{}.shp'.format(COUNTRY))
+        path_countries = os.path.join(SHAPEFILE_DIR,
+            'national_outline_{}.shp'.format(COUNTRY))
         countries = geopandas.read_file(path_countries)
 
         for name in countries.GID_0.unique():
@@ -97,8 +103,10 @@ def process_regions(gadm_level):
             regions['geometry'] = regions.apply(exclude_small_shapes,axis=1)
 
             print('Simplifying geometries')
-            regions['geometry'] = regions.simplify(tolerance = 0.005, preserve_topology=True) \
-                .buffer(0.01).simplify(tolerance = 0.005, preserve_topology=True)
+            regions['geometry'] = regions.simplify(
+                tolerance = 0.005, preserve_topology=True) \
+                .buffer(0.01).simplify(tolerance = 0.005,
+                preserve_topology=True)
 
             print('Writing global_regions.shp to file')
             regions.to_file(path_processed, driver='ESRI Shapefile')
@@ -113,26 +121,29 @@ def process_regions(gadm_level):
 
 def exclude_small_shapes(x,regionalized=False):
     """
-    This function will remove the small shapes of multipolygons. Will reduce the size
-        of the file.
+    This function will remove the small shapes of multipolygons.
+    Will reduce the size of the file.
 
     Arguments:
-        *x* : a geometry feature (Polygon) to simplify. Countries which are very large will
-        see larger (unhabitated) islands being removed.
+        *x* : a geometry feature (Polygon) to simplify.
+        Countries which are very large will see larger (unhabitated)
+        islands being removed.
 
     Optional Arguments:
-        *regionalized*  : Default is **False**. Set to **True** will use lower threshold
-        settings (default: **False**).
+        *regionalized*  : Default is **False**. Set to **True** will
+        use lower threshold settings (default: **False**).
 
     Returns:
-        *MultiPolygon* : a shapely geometry MultiPolygon without tiny shapes.
+        *MultiPolygon* : a shapely geometry MultiPolygon without
+        tiny shapes.
 
     """
     # if its a single polygon, just return the polygon geometry
     if x.geometry.geom_type == 'Polygon':
         return x.geometry
 
-    # if its a multipolygon, we start trying to simplify and remove shapes if its too big.
+    # if its a multipolygon, we start trying to simplify and
+    # remove shapes if its too big.
     elif x.geometry.geom_type == 'MultiPolygon':
 
         if regionalized == False:
@@ -161,7 +172,8 @@ def exclude_small_shapes(x,regionalized=False):
         else:
             threshold = 0.001
 
-        # save remaining polygons as new multipolygon for the specific country
+        # save remaining polygons as new multipolygon for the
+        # specific country
         new_geom = []
         for y in x.geometry:
             if y.area > threshold:
@@ -173,13 +185,16 @@ def exclude_small_shapes(x,regionalized=False):
 def process_settlement_layer(single_country):
     """
     """
-    path_settlements = os.path.join('data', 'world_population','ppp_2020_1km_Aggregated.tif')
+    path_settlements = os.path.join(
+        'data', 'world_population','ppp_2020_1km_Aggregated.tif')
 
     settlements = rasterio.open(path_settlements)
 
     geo = geopandas.GeoDataFrame()
 
-    geo = geopandas.GeoDataFrame({'geometry': single_country['geometry']}, index=[0], crs=from_epsg('4326'))
+    geo = geopandas.GeoDataFrame({
+        'geometry': single_country['geometry']}, index=[0],
+        crs=from_epsg('4326'))
 
     coords = [json.loads(geo.to_json())['features'][0]['geometry']]
 
@@ -292,6 +307,7 @@ def process_wb_survey_data(path):
 
 
 if __name__ == '__main__':
+
     gadm_level = 3
     create_folders()
 

@@ -1,12 +1,11 @@
 """
 Generate download locations within a country and download them.
 
-Written by Jatin Mathur
+Written by Jatin Mathur.
 
 Winter 2020
 
 """
-
 import os
 import configparser
 import math
@@ -40,19 +39,27 @@ with open(CONFIG['DEFAULT']['ACCESS_TOKEN_DIR'], 'r') as f:
     ACCESS_TOKEN = f.readlines()[0]
 assert ACCESS_TOKEN is not None, print("Access token is not valid")
 
+
 def create_folders():
+    """
+    Function to create new folders.
+
+    """
     os.makedirs(IMAGE_DIR, exist_ok=True)
+
 
 def get_polygon_download_locations(polygon, number, seed=7):
     """
-        Samples NUMBER points evenly but randomly from a polygon
-        Seed is set to 7 for reproducibility
+    Samples NUMBER points evenly but randomly from a polygon. Seed is set to
+    7 for reproducibility.
 
-        At first tries to create sub-grid of size n x n where n = sqrt(number)
-        It checks these coordinates and if they are in the polygon it uses them
+    At first tries to create sub-grid of size n x n where n = sqrt(number)
+    It checks these coordinates and if they are in the polygon it uses them
 
-        If the number of points found is still less than the number, I sample randomly
-        from the polygon until I have the required number
+    If the number of points found is still less than the desired number,
+    samples are taken randomly from the polygon until the required number
+    is achieved.
+
     """
     random.seed(seed)
 
@@ -60,8 +67,10 @@ def get_polygon_download_locations(polygon, number, seed=7):
     edge_num = math.floor(math.sqrt(number))
     lats = np.linspace(min_y, max_y, edge_num)
     lons = np.linspace(min_x, max_x, edge_num)
+
     # performs cartesian product
-    evenly_spaced_points = np.transpose([np.tile(lats, len(lons)), np.repeat(lons, len(lats))])
+    evenly_spaced_points = np.transpose(
+        [np.tile(lats, len(lons)), np.repeat(lons, len(lats))])
     assert len(evenly_spaced_points) <= number
 
     # tries using evenly spaced points
@@ -73,7 +82,10 @@ def get_polygon_download_locations(polygon, number, seed=7):
 
     # fills the remainder with random points
     while len(points) < number:
-        point = Point(random.uniform(min_x, max_x), random.uniform(min_y, max_y))
+
+        point = Point(random.uniform(min_x, max_x),
+            random.uniform(min_y, max_y))
+
         if polygon.contains(point):
             points.append([point.y, point.x])
 
@@ -82,29 +94,43 @@ def get_polygon_download_locations(polygon, number, seed=7):
 
 def generate_country_download_locations(min_population=100, num_per_grid=20):
     """
-        Generates NUM_PER_GRID download locations for each grid with at least MIN_POPULATION people
+    Generates a defined number of download locations (NUM_PER_GRID) for each
+    grid with at least the minimum number of specified residents (MIN_
+    POPULATION).
+
     """
     grid = gpd.read_file(os.path.join(GRID_DIR, 'grid.shp'))
     grid = grid[grid['population'] >= min_population]
-    lat_lon_pairs = grid['geometry'].apply(lambda polygon: get_polygon_download_locations(polygon, number=num_per_grid))
+
+    lat_lon_pairs = grid['geometry'].apply(
+        lambda polygon: get_polygon_download_locations(
+            polygon, number=num_per_grid))
+
     centroids = grid['geometry'].centroid
 
-    columns = ['centroid_lat', 'centroid_lon', 'image_lat', 'image_lon', 'image_name']
+    columns = [
+        'centroid_lat', 'centroid_lon', 'image_lat', 'image_lon', 'image_name'
+    ]
+
     with open(os.path.join(GRID_DIR, 'image_download_locs.csv'), 'w') as f:
         f.write(','.join(columns) + '\n')
 
         for lat_lons, centroid in zip(lat_lon_pairs, centroids):
             for lat, lon in lat_lons:
                 name = str(lat) + '_' + str(lon) + '.png'
-                to_write = [str(centroid.y), str(centroid.x), str(lat), str(lon), name]                
+                to_write = [
+                    str(centroid.y), str(centroid.x), str(lat), str(lon), name]
                 f.write(','.join(to_write) + '\n')
 
-    print('Generated image download locations and saved at {}'.format(os.path.join(GRID_DIR, 'image_download_locs.csv')))
+    print('Generated image download locations and saved at {}'.format(
+        os.path.join(GRID_DIR, 'image_download_locs.csv')))
 
 
 def download_images(df):
     """
-        Download images using a pandas DataFrame that has "image_lat", "image_lon", "image_name" as columns
+    Download images using a pandas DataFrame that has "image_lat", "image_lon",
+    "image_name" as columns.
+
     """
     imd = ImageryDownloader(ACCESS_TOKEN)
     zoom = 16
@@ -113,10 +139,14 @@ def download_images(df):
     WAIT_TIME = 0.1 # seconds
 
     # only download unique images
-    df = df.dropna(subset=['image_lat', 'image_lon', 'image_name']).drop_duplicates(subset=['image_lat', 'image_lon'])
+    df = df.dropna(
+        subset=['image_lat', 'image_lon', 'image_name']).drop_duplicates(
+        subset=['image_lat', 'image_lon'])
+
     # drops what is already downloaded
     already_downloaded = os.listdir(IMAGE_DIR)
     print('Already downloaded ' + str(len(already_downloaded)))
+
     df = df.set_index('image_name').drop(already_downloaded).reset_index()
     print('Need to download ' + str(len(df)))
 
@@ -138,7 +168,9 @@ def download_images(df):
                         resolved = True
                         break
                 if not resolved:
-                    raise ValueError(f'Could not download {lat}, {lon}, {zoom} despite several retries and waiting')
+                    raise ValueError(
+                        f'Could not download {lat}, {lon}, {zoom} \
+                            despite several retries and waiting')
                 else:
                     pass
             else:
@@ -146,28 +178,30 @@ def download_images(df):
                 plt.imsave(os.path.join(IMAGE_DIR, name), im)
 
         except Exception as e:
-            logging.error(f"Error-could not download {lat}, {lon}, {zoom}", exc_info=True)
+            logging.error(
+                f"Error-could not download {lat}, {lon}, {zoom}", \
+                    exc_info=True)
             break
 
 
-
 if __name__ == '__main__':
+
     create_folders()
 
     arg = '--all'
     if len(sys.argv) >= 2:
         arg = sys.argv[1]
         assert arg in ['--all', '--generate-download-locations', '--download-images']
-        
+
     if arg == '--all':
         print('Generating download locations...')
         generate_country_download_locations()
-        
+
         df_download = pd.read_csv(os.path.join(GRID_DIR, 'image_download_locs.csv'))
 
         print('Downloading images. Might take a while...')
         download_images(df_download)
-        
+
     elif arg == '--generate-download-locations':
         print('Generating download locations...')
         generate_country_download_locations()
@@ -180,4 +214,3 @@ if __name__ == '__main__':
 
     else:
         raise ValueError('Args not handled correctly')
-    
