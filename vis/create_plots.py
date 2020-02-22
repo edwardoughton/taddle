@@ -32,7 +32,7 @@ RESULTS_DIR = f'countries/{COUNTRY}/results/'
 
 def create_folders():
     """
-    Function to create desired folders.
+    Function to create desired folder.
 
     """
     os.makedirs(os.path.join(RESULTS_DIR, 'figures'), exist_ok=True)
@@ -43,18 +43,16 @@ def create_plot(country, metric, min_population=100, under_color='b'):
     This method creates a geospatial figure depicting the predictions
     for a given metric within a grid.
 
-    `min_population`:
-
     Currently, the color scale terminates 3 standard deviations above
     and below the mean. This is to prevent outliers with extremely high
     relative consumptions from dominating the linear color scale.
 
     Parameters
     ----------
-    country : ???
-        Country to plot.
-    metric : ???
-        Metric to plot.
+    country : string
+        Country to plot (ISO 3 digit code).
+    metric : string
+        Metric to plot (consumption, phone_consumption, phone_density).
     min_population : int
         The minimum population a grid should have to included in
         the scale `under_color`. And squares with populations under
@@ -95,12 +93,14 @@ def create_plot(country, metric, min_population=100, under_color='b'):
     cmap.set_under(under_color)
     vmax = coloring_guide.mean() + 3 * coloring_guide.std()
 
-    kwargs = {'vmin': vmin,
-            'vmax': vmax,
-            'cmap': cmap}
+    kwargs = {
+        'vmin': vmin,
+        'vmax': vmax,
+        'cmap': cmap
+    }
 
-    fig, ax = plt.subplots(figsize=(10,20))
-    # ctx.add_basemap(ax)
+    fig, ax = plt.subplots(figsize=(6,12))
+
     ax.set_aspect("equal")
     norm = colors.Normalize(vmin, vmax)
     fig.colorbar(cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax)
@@ -111,7 +111,8 @@ def create_plot(country, metric, min_population=100, under_color='b'):
         units = '($/year)'
 
     label = (metric +' per capita').replace('_', ' ')
-    ax.set_title(f'Malawi Predicted {label.title() + units}', fontsize=18)
+    ax.set_title(f'Malawi Predicted {label.title() + units}', fontsize=10)
+    ctx.add_basemap(ax, crs=df_geo.crs)
 
     save_dir = os.path.join(RESULTS_DIR, 'figures', f'predicted_{metric}_per_capita.png')
     print(f'Saving figure to {save_dir}')
