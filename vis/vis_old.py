@@ -19,10 +19,18 @@ import matplotlib.colors
 CONFIG = configparser.ConfigParser()
 CONFIG.read(os.path.join(os.path.dirname(__file__), '..','scripts', 'script_config.ini'))
 BASE_PATH = CONFIG['file_locations']['base_path']
-
-DATA_RAW = os.path.join(BASE_PATH, 'raw')
 DATA_PROCESSED = os.path.join(BASE_PATH, 'processed')
-DATA_RESULTS = os.path.join(BASE_PATH, '..', 'results')
+# DATA_RESULTS = os.path.join(BASE_PATH, '..', 'results')
+
+CONFIG_DATA = configparser.ConfigParser()
+CONFIG_DATA.read(os.path.join(os.path.dirname(__file__), '..', 'scripts','script_config.ini'))
+BASE_PATH = CONFIG_DATA['file_locations']['base_path']
+
+CONFIG_COUNTRY = configparser.ConfigParser()
+CONFIG_COUNTRY.read('script_config.ini')
+COUNTRY = CONFIG_COUNTRY['DEFAULT']['COUNTRY']
+SHAPEFILE_DIR = f'countries/{COUNTRY}/shapefile'
+GRID_DIR = f'countries/{COUNTRY}/grid'
 
 
 def create_scatterplot(clust_averages, metric, metric2, coefficients, distance):
@@ -177,7 +185,6 @@ if __name__ == '__main__':
     ccn_predictions =  pd.read_csv(os.path.join(DATA_PROCESSED, 'cluster_cnn_predictions.csv'))
 
     ccn_predictions = ccn_predictions.drop(ccn_predictions[ccn_predictions.cluster_cons > 200].index)
-
 
     create_plot(ccn_predictions, 'cluster_cons', 'predicted_cons',
         'Consumption ($/day)', 'Predicted Consumption ($/day)', 'Predicted Consumption (CNN)')

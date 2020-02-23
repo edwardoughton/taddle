@@ -218,94 +218,6 @@ def process_settlement_layer(single_country):
     return
 
 
-def process_wb_survey_data(path):
-    """
-    This function takes the World Bank Living Standards Measurement
-    Survey and processes all the data.
-
-    We've used the 2016-2017 Household LSMS survey data for Malawi from
-    https://microdata.worldbank.org/index.php/catalog/lsms.
-    It should be in ../data/raw/LSMS/malawi-2016
-
-    IHS4 Consumption Aggregate.csv contains:
-
-    - Case ID: Unique household ID
-    - rexpagg: Total annual per capita consumption,
-        spatially & (within IHS4) temporally adjust (rexpagg)
-    - adulteq: Adult equivalence
-    - hh_wgt: Household sampling weight
-
-    HouseholdGeovariablesIHS4.csv contains:
-
-    - Case ID: Unique household ID
-    - HHID: Survey solutions unique HH identifier
-    - lat_modified: GPS Latitude Modified
-    - lon_modified: GPS Longitude Modified
-
-    Parameters
-    ----------
-    path : string
-        Path to the desired data location.
-
-    """
-    ## Path to non-spatial consumption results
-    file_path = os.path.join(path, 'IHS4 Consumption Aggregate.csv')
-
-    ##Read results
-    df = pd.read_csv(file_path)
-
-    ##Estimate monthly consumption accounting for adult equivalence
-    df['cons'] = df['rexpagg'] / (12 * df['adulteq'])
-    df['cons'] = df['cons'] * 107.62 / (116.28 * 166.12)
-
-    ## Rename column
-    df.rename(columns={'hh_wgt': 'weight'}, inplace=True)
-
-    ## Subset desired columns
-    df = df[['case_id', 'cons', 'weight', 'urban']]
-
-    ##Read geolocated survey data
-    df_geo = pd.read_csv(os.path.join(path,
-        'HouseholdGeovariables_csv/HouseholdGeovariablesIHS4.csv'))
-
-    ##Subset household coordinates
-    df_cords = df_geo[['case_id', 'HHID', 'lat_modified', 'lon_modified']]
-    df_cords.rename(columns={
-        'lat_modified': 'lat', 'lon_modified': 'lon'}, inplace=True)
-
-    ##Merge to add coordinates to aggregate consumption data
-    df = pd.merge(df, df_cords[['case_id', 'HHID']], on='case_id')
-
-    ##Repeat to get df_combined
-    df_combined = pd.merge(df, df_cords, on=['case_id', 'HHID'])
-
-    ##Drop case id variable
-    df_combined.drop('case_id', axis=1, inplace=True)
-
-    ##Drop incomplete
-    df_combined.dropna(inplace=True) # can't use na values
-
-    print('Combined shape is {}'.format(df_combined.shape))
-
-    ##Find cluster constant average
-    clust_cons_avg = df_combined.groupby(
-                        ['lat', 'lon']).mean().reset_index()[
-                        ['lat', 'lon', 'cons']]
-
-    ##Merge dataframes
-    df_combined = pd.merge(df_combined.drop(
-                        'cons', axis=1), clust_cons_avg, on=[
-                        'lat', 'lon'])
-
-    ##Get uniques
-    df_uniques = df_combined.drop_duplicates(subset=
-                        ['lat', 'lon'])
-
-    print('Processed WB Living Standards Measurement Survey')
-
-    return df_uniques, df_combined
-
-
 if __name__ == '__main__':
 
     gadm_level = 3
@@ -319,13 +231,3 @@ if __name__ == '__main__':
 
     print('Process settlement layer')
     process_settlement_layer(single_country)
-
-    # print('Processing World Bank Living Standards Measurement Survey')
-    # path = os.path.join(BASE_PATH, '..', 'lsms', 'malawi_2016')
-    # df_uniques, df_combined = process_wb_survey_data(path)
-
-    # print('Writing data')
-    # df_uniques.to_csv(os.path.join(DATA_PROCESSED,
-    #     'df_uniques.csv'), index=False)
-    # df_combined.to_csv(os.path.join(DATA_PROCESSED,
-    #     'df_combined.csv'), index=False)
