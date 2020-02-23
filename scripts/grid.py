@@ -23,6 +23,7 @@ COUNTRY = CONFIG['DEFAULT']['COUNTRY']
 SHAPEFILE_DIR = f'countries/{COUNTRY}/shapefile'
 GRID_DIR = f'countries/{COUNTRY}/grid'
 
+
 def create_folders():
     """
     Function to create new folder.
