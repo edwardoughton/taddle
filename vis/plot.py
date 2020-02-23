@@ -79,6 +79,7 @@ def create_plot(country, metric, min_population=100, under_color='b'):
     df_geo = merge_on_lat_lon(df_geo, preds, keys=['centroid_lat', 'centroid_lon'], how='left')
 
     geometry = df_geo['geometry']
+
     # if prediction is under 0, set to 0
     coloring_guide = df_geo[f'predicted_{metric}_pc']
     coloring_guide.loc[coloring_guide < 0] = 0
