@@ -23,12 +23,104 @@ from shapely.ops import transform
 from tqdm import tqdm
 import csv
 
-CONFIG = configparser.ConfigParser()
-CONFIG.read(os.path.join(os.path.dirname(__file__), 'script_config.ini'))
-BASE_PATH = CONFIG['file_locations']['base_path']
+CONFIG_COUNTRY = configparser.ConfigParser()
+CONFIG_COUNTRY.read('script_config.ini')
+COUNTRY = CONFIG_COUNTRY['DEFAULT']['COUNTRY']
+SHAPEFILE_DIR = f'countries/{COUNTRY}/shapefile'
+GRID_DIR = f'countries/{COUNTRY}/grid'
 
-DATA_RAW = os.path.join(BASE_PATH, 'raw')
+CONFIG_DATA = configparser.ConfigParser()
+CONFIG_DATA.read(os.path.join(os.path.dirname(__file__), 'script_config.ini'))
+BASE_PATH = CONFIG_DATA['file_locations']['base_path']
 DATA_PROCESSED = os.path.join(BASE_PATH, 'processed')
+
+
+def process_wb_survey_data(path):
+    """
+    This function takes the World Bank Living Standards Measurement
+    Survey and processes all the data.
+
+    We've used the 2016-2017 Household LSMS survey data for Malawi from
+    https://microdata.worldbank.org/index.php/catalog/lsms.
+    It should be in ../data/raw/LSMS/malawi-2016
+
+    IHS4 Consumption Aggregate.csv contains:
+
+    - Case ID: Unique household ID
+    - rexpagg: Total annual per capita consumption,
+        spatially & (within IHS4) temporally adjust (rexpagg)
+    - adulteq: Adult equivalence
+    - hh_wgt: Household sampling weight
+
+    HouseholdGeovariablesIHS4.csv contains:
+
+    - Case ID: Unique household ID
+    - HHID: Survey solutions unique HH identifier
+    - lat_modified: GPS Latitude Modified
+    - lon_modified: GPS Longitude Modified
+
+    Parameters
+    ----------
+    path : string
+        Path to the desired data location.
+
+    """
+    ## Path to non-spatial consumption results
+    file_path = os.path.join(path, 'IHS4 Consumption Aggregate.csv')
+
+    ##Read results
+    df = pd.read_csv(file_path)
+
+    ##Estimate monthly consumption accounting for adult equivalence
+    df['cons'] = df['rexpagg'] / (12 * df['adulteq'])
+    df['cons'] = df['cons'] * 107.62 / (116.28 * 166.12)
+
+    ## Rename column
+    df.rename(columns={'hh_wgt': 'weight'}, inplace=True)
+
+    ## Subset desired columns
+    df = df[['case_id', 'cons', 'weight', 'urban']]
+
+    ##Read geolocated survey data
+    df_geo = pd.read_csv(os.path.join(path,
+        'HouseholdGeovariables_csv/HouseholdGeovariablesIHS4.csv'))
+
+    ##Subset household coordinates
+    df_cords = df_geo[['case_id', 'HHID', 'lat_modified', 'lon_modified']]
+    df_cords.rename(columns={
+        'lat_modified': 'lat', 'lon_modified': 'lon'}, inplace=True)
+
+    ##Merge to add coordinates to aggregate consumption data
+    df = pd.merge(df, df_cords[['case_id', 'HHID']], on='case_id')
+
+    ##Repeat to get df_combined
+    df_combined = pd.merge(df, df_cords, on=['case_id', 'HHID'])
+
+    ##Drop case id variable
+    df_combined.drop('case_id', axis=1, inplace=True)
+
+    ##Drop incomplete
+    df_combined.dropna(inplace=True) # can't use na values
+
+    print('Combined shape is {}'.format(df_combined.shape))
+
+    ##Find cluster constant average
+    clust_cons_avg = df_combined.groupby(
+                        ['lat', 'lon']).mean().reset_index()[
+                        ['lat', 'lon', 'cons']]
+
+    ##Merge dataframes
+    df_combined = pd.merge(df_combined.drop(
+                        'cons', axis=1), clust_cons_avg, on=[
+                        'lat', 'lon'])
+
+    ##Get uniques
+    df_uniques = df_combined.drop_duplicates(subset=
+                        ['lat', 'lon'])
+
+    print('Processed WB Living Standards Measurement Survey')
+
+    return df_uniques, df_combined
 
 
 def query_nightlight_data(filepath_nl, filepath_pop, df_uniques, df_combined, path):
@@ -408,16 +500,26 @@ def write_shapefile(data, directory, filename, crs):
 
 if __name__ == '__main__':
 
+    print('Processing World Bank Living Standards Measurement Survey')
+    path = os.path.join(BASE_PATH, 'lsms', 'malawi_2016')
+    df_uniques, df_combined = process_wb_survey_data(path)
+
+    print('Writing data')
+    df_uniques.to_csv(os.path.join(path,
+        'df_uniques.csv'), index=False)
+    df_combined.to_csv(os.path.join(path,
+        'df_combined.csv'), index=False)
+
     print('Defining nightlight data path')
     year = 2013
     folder_name = 'noaa_dmsp_ols_nightlight_data'
-    path_nl = os.path.join(DATA_RAW, folder_name)
+    path_nl = os.path.join(BASE_PATH, folder_name)
     filename = 'F182013.v4c_web.stable_lights.avg_vis.tif'
     filepath_nl = os.path.join(path_nl, str(year), filename)
 
     print('Defining world pop data path')
-    folder_name = 'world_pop'
-    path_pop = os.path.join(DATA_RAW, folder_name)
+    folder_name = 'world_population'
+    path_pop = os.path.join(BASE_PATH, folder_name)
     filename = 'ppp_2020_1km_Aggregated.tif'
     filepath_pop = os.path.join(path_pop, filename)
 
@@ -467,12 +569,12 @@ if __name__ == '__main__':
         'lsms-cluster-2016.csv'), index=False)
 
     print('Loading grid')
-    path = os.path.join(DATA_PROCESSED, 'grid_test.shp')
+    path = os.path.join(GRID_DIR, 'grid.shp')
     grid = load_grid(path)
 
     print('Defining land cover data path')
     folder_name = 'modis_landcover'
-    path_lc = os.path.join(DATA_RAW, folder_name)
+    path_lc = os.path.join(BASE_PATH, folder_name)
     filename = 'MCD12Q1.006_LC_Type1_doy2016001_aid0001.tif'
     filepath_lc = os.path.join(path_lc,filename)
 
