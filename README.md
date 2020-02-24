@@ -94,7 +94,7 @@ Then run:
 `create_plots.py` will generate a prediction map for the country for each broadband metric. An example is shown below:
 
 <p align="center">
-  <img src="figures/predicted_phone_density_per_capita.png" width="300" height="600">
+  <img src="figures/predicted_phone_density_per_capita.png" width="450" height="900">
 </p>
 
 The color blue indicates regions with too few people (under 100) to be considered. This does not necesarily mean they are bodies of water. They could also be forests, deserts or less habitable terrain.
