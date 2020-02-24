@@ -48,10 +48,10 @@ Copy those files/folders to the following locations, relative to root:
 Finally, run `python scripts/create_ridge_models.py` to create the Ridge Regression models that will predict telecoms demand. You can explore this and other aspects of the code in the `ipynb` folder.
 
 **Alternatively, you can skip this process and download the files from this GDrive link: https://drive.google.com/drive/folders/1ILbkcckl38tMVYSMm3Oq_VYaOKseuyIp?usp=sharing. Move them to the following locations:**
-- trained_model.pt -> model/trained_model.pt
-- ridge_consumption.joblib -> model/ridge_consumption.joblib
-- ridge_phone_consumption.joblib -> model/ridge_phone_consumption.joblib
-- ridge_phone_density.joblib -> model/ridge_phone_density.joblib
+- trained_model.pt -> models/trained_model.pt
+- ridge_consumption.joblib -> models/ridge_consumption.joblib
+- ridge_phone_consumption.joblib -> models/ridge_phone_consumption.joblib
+- ridge_phone_density.joblib -> models/ridge_phone_density.joblib
 - cluster_feats.npy -> data/LSMS/MWI/processed/cluster_feats.npy
 - cluster_order.pkl -> data/LSMS/MWI/processed/cluster_order.pkl
 
@@ -60,18 +60,18 @@ You still need to acquire your own *api_key.txt*.
 Predicting Telecoms Demand for a Country
 ========================================
 
-Now that we have trained the models, we can move on to the purpose of this repository - predicting telecoms demand metrics in data-poor locations with high spatial granularity, using only satellite imagery. 
+Now that we have trained the models, we can move on to the purpose of this repository - predicting telecoms demand metrics in data-poor locations with high spatial granularity, using only satellite imagery.
 
 You will need to download the Global Adminstrative Database (GADM). Choose the link that lets you download "six separate layers.":
-- https://gadm.org/download_world.html 
+- https://gadm.org/download_world.html
 
-Move the download into `data/gadm36_levels_shp`. 
+Move the download into `data/gadm36_levels_shp`.
 
 Also download the global population data from WorldPop and place it in `data/world_population`:
-- https://www.worldpop.org/geodata/summary?id=24777. 
+- https://www.worldpop.org/geodata/summary?id=24777.
 
-Next, go into `script_config.ini` and enter in the three digit code for any country you want, 
-e.g. 'MWI'. 
+Next, go into `script_config.ini` and enter in the three digit code for any country you want,
+e.g. 'MWI'.
 
 Then run:
 
