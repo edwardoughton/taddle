@@ -71,8 +71,13 @@ def create_folders():
     os.makedirs(RIDGE_PHONE_CONSUMPTION_SAVE_DIR, exist_ok=True)
     os.makedirs(RIDGE_CONSUMPTION_SAVE_DIR, exist_ok=True)
 
+
 # custom dataset for fast image loading and processing
 class ForwardPassDataset(torch.utils.data.Dataset):
+    """
+    Class to undertake forward pass.
+
+    """
     def __init__(self, image_dir, transformer):
         self.image_dir = image_dir
         self.image_list = os.listdir(self.image_dir)
@@ -141,6 +146,7 @@ class ModelPipeline:
         """
         assert metric in ['phone_density', 'phone_consumption', 'consumption']
         print(f'Running prediction pipeline on metric: {metric}')
+
         # check to see if clustered feats already exist
         grids = None
         grid_features = None
