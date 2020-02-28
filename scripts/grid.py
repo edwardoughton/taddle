@@ -1,7 +1,7 @@
 """
 Create 10km x 10km grid.
 
-Written by Ed Oughton
+Written by Ed Oughton.
 
 Winter 2020
 

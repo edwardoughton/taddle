@@ -1,7 +1,7 @@
 """
 Create Ridge Regression models using LSMS survey data.
 
-Written by Jatin Mathur
+Written by Jatin Mathur.
 
 Winter 2020
 

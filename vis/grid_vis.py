@@ -1,7 +1,7 @@
 """
 Create plots of grid-level predictions across a country
 
-Written by Jatin Mathur and Ed Oughton
+Written by Jatin Mathur and Ed Oughton.
 
 Winter 2020
 
@@ -27,6 +27,7 @@ CONFIG = configparser.ConfigParser()
 CONFIG.read('script_config.ini')
 
 COUNTRY = CONFIG['DEFAULT']['COUNTRY']
+GRID_DIR = f'countries/{COUNTRY}/grid'
 RESULTS_DIR = f'countries/{COUNTRY}/results/'
 
 
@@ -35,7 +36,7 @@ def create_folders():
     Function to create desired folder.
 
     """
-    os.makedirs(os.path.join(RESULTS_DIR, 'figures'), exist_ok=True)
+    os.makedirs(os.path.join(RESULTS_DIR, 'figures'), exist_ok=False)
 
 
 def create_plot(country, metric, min_population=100, under_color='b'):
@@ -63,7 +64,7 @@ def create_plot(country, metric, min_population=100, under_color='b'):
 
     """
     print(f'creating plot for {metric}')
-    df_geo = gpd.read_file(f'countries/{country}/grid/grid.shp')
+    df_geo = gpd.read_file(os.path.join(GRID_DIR, 'grid.shp'))
     df_geo['centroid'] = df_geo['geometry'].centroid
     df_geo['centroid_lat'] = df_geo['centroid'].apply(lambda point: point.y)
     df_geo['centroid_lon'] = df_geo['centroid'].apply(lambda point: point.x)
