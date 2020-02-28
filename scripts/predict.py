@@ -227,7 +227,7 @@ def catch_missing_values(value):
 
 def create_space(lat, lon):
     """
-    Creates a 10km^2 area bounding box.
+    Creates a 100km^2 area bounding box.
 
     Parameters
     ----------
@@ -237,10 +237,11 @@ def create_space(lat, lon):
         Longitude
 
     """
-    bottom = lat - (180 / math.pi) * (5000 / 6378137)
-    left = lon - (180 / math.pi) * (5000 / 6378137) / math.cos(lat)
-    top = lat + (180 / math.pi) * (5000 / 6378137)
-    right = lon + (180 / math.pi) * (5000 / 6378137) / math.cos(lat)
+    v = (180 / math.pi) * (5000 / 6378137) # approximately 0.045
+    bottom = lat - v
+    left = lon - v
+    top = lat + v
+    right = lon + v
 
     return bottom, left, top, right
 

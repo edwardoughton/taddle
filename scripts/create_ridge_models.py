@@ -64,36 +64,23 @@ def create_folders():
 
 def create_space(lat, lon):
     """
-    Make the 10km^2 area around a specific lat-lon.
+    Creates a 100km^2 area bounding box.
 
     Parameters
     ----------
     lat : float
-        Latitude.
+        Latitude
     lon : float
-        Longitude.
-
-    Returns
-    -------
-    l1 : float
-        Corner of box.
-    l2 : float
-        Corner of box.
-    l3 : float
-        Corner of box.
-    l4 : float
-        Corner of box.
+        Longitude
 
     """
-    l1 = lat - (180/math.pi)*(5000/6378137)
+    v = (180 / math.pi) * (5000 / 6378137) # approximately 0.045
+    bottom = lat - v
+    left = lon - v
+    top = lat + v
+    right = lon + v
 
-    l2 = lon - (180/math.pi)*(5000/6378137) / math.cos(lat)
-
-    l3 = lat + (180/math.pi)*(5000/6378137)
-
-    l4 = lon + (180/math.pi)*(5000/6378137) / math.cos(lat)
-
-    return l1, l2, l3, l4
+    return bottom, left, top, right
 
 
 def prepare_data():
