@@ -37,7 +37,7 @@ CLUSTER_PREDICTIONS_DIR = f'data/LSMS/{COUNTRY}/output/cluster_predictions.csv'
 PPP = float(CONFIG_COUNTRY['DEFAULT']['PPP'])
 
 def create_folders():
-    os.makedirs(CLUSTER_FIGURES_DIR, exist_ok=False)
+    os.makedirs(CLUSTER_FIGURES_DIR, exist_ok=True)
 
 def prepare_data():
     """
@@ -102,6 +102,7 @@ def r2(x, y):
 
 
 def create_regplot(data):
+
     print("Creating regplot")
 
     data = data[data['cluster_annual_consumption_pc'] <= 10000]
@@ -122,7 +123,7 @@ def create_regplot(data):
         line_kws={'alpha': 0.5, 'color':'black'})
     g.set(ylabel='Luminosity (DN)', xlabel='Consumption per capita ($ per month)',
         title='Luminosity vs\nConsumption (R$^2$={})'.format(str(coef1)),
-        ylim=(0, 50))
+        xlim=(0, 400), ylim=(0, 50))
 
     coef2 = r2(data['cluster_nightlights'], data['cluster_monthly_phone_consumption_pc'])
     g = sns.regplot(y="cluster_nightlights", x="cluster_monthly_phone_consumption_pc",
@@ -130,7 +131,7 @@ def create_regplot(data):
         line_kws={'alpha': 0.5, 'color':'black'})
     g.set(ylabel='Luminosity (DN)', xlabel='Total Cost ($ per month)',
         title='Luminosity vs\nTotal Cost of Phone Services (R$^2$={})'.format(str(coef2)),
-        ylim=(0, 50))
+         xlim=(0, 30), ylim=(0, 50))
 
     #'hh_f34': 'cellphones_pc',
     coef3 = r2(data['cluster_nightlights'], data['cluster_cellphones_pc'])
@@ -139,7 +140,7 @@ def create_regplot(data):
         line_kws={'alpha': 0.5, 'color':'black'})
     g.set(ylabel='Luminosity (DN)', xlabel='Number of Cell Phones',
         title='Luminosity vs Total Cell \nPhones per HH (R$^2$={})'.format(str(coef3)),
-        ylim=(0, 50))
+        xlim=(0, 1), ylim=(0, 50))
 
     #'hh_f35': 'estimated_annual_phone_cost_pc'
     data = data.dropna(subset=['cluster_nightlights', 'cluster_monthly_phone_cost_pc'])
@@ -147,54 +148,77 @@ def create_regplot(data):
     g = sns.regplot(y="cluster_nightlights", x="cluster_monthly_phone_cost_pc",
         data=data, ax=ax4, scatter_kws={'alpha': 0.2, 'color':'blue'},
         line_kws={'alpha': 0.5, 'color':'black'})
-    g.set(ylabel='Luminosity (DN)', xlabel='Annual consumption ($)',
-        title='Luminosity vs Annual Consumption\nof Phone and Fax Services (R$^2$={})'.format(str(coef4)),
-        ylim=(0, 50))
+    g.set(ylabel='Luminosity (DN)', xlabel='Monthly consumption ($)',
+        title='Luminosity vs Monthly Consumption\nof Phone and Fax Services (R$^2$={})'.format(str(coef4)),
+        xlim=(0, 700), ylim=(0, 50))
 
     fig.tight_layout()
-    save_dir = os.path.join(CLUSTER_FIGURES_DIR, 'regplot.png')
+    save_dir = os.path.join(CLUSTER_FIGURES_DIR, 'regplot_luminosity.png')
     print(f'Saving figure to {save_dir}')
     fig.savefig(save_dir)
 
     print("Plotting completed")
 
 
-def results(data):
+def create_prediction_regplot(data):
 
-    fig, ((ax1, ax2), (ax3, ax4), (ax5, ax6), (ax7, ax8)) = plt.subplots(
-        4, 2, figsize=(10,10))
+    print("Creating regplot")
 
-    g = sns.regplot(x="cons_pred_10km", y="cons", data=data, ax=ax1)
-    g.set(xlabel='Predicted Consumption ($)', ylabel='Consumption ($)',
-        title='Consumption vs \n Predicted Consumption (cluster_nightlights)')
+    data = data[data['cluster_annual_consumption_pc'] <= 10000]
 
-    g = sns.regplot(x="predicted_cons", y="cons", data=data, ax=ax2)
-    g.set(xlabel='Predicted Consumption ($ per month)',
-        ylabel='Consumption ($ per month)',
-        title='Consumption vs \n Luminosity (CNN)')
+    data['cluster_monthly_consumption_pc'] = data['cluster_annual_consumption_pc'] / 12
+    data['cluster_monthly_phone_consumption_pc'] = data['cluster_annual_phone_consumption_pc'] / 12
+    data['cluster_monthly_phone_cost_pc'] = data['cluster_estimated_annual_phone_cost_pc'] / 12
+    data['predicted_monthly_consumption'] = data['predicted_consumption'] / 12
+    data['predicted_monthly_phone_consumption'] = data['predicted_phone_consumption'] / 12
 
-    g = sns.regplot(x="predicted_phone_cons", y="cluster_phone_cons",
-        data=data, ax=ax4)
-    g.set(xlabel='Annual Spending ($)',
-        ylabel='Predicted Annual Spending ($)',
-        title='Predicted Spending on Phone Services (rexp_cat083) (CNN)')
+    bins = [0, 400, 800, 1200, 4020]
+    labels = [5, 15, 25, 60]
+    data['pop_density_binned'] = pd.cut(data['cluster_population_density_1km2'], bins=bins, labels=labels)
 
-    g = sns.regplot(x="predicted_cluster_hh_f35", y="cluster_hh_f35",
-        data=data, ax=ax6)
-    g.set(xlabel='Annual Cost ($)',
-        ylabel='Annual Predicted Cost ($)',
-        title='Predicted Annual Cost of Cell Phone Services (hh_f35) (CNN)')
+    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(10,8))
 
-    g = sns.regplot(x="predicted_cluster_hh_f34", y="cluster_hh_f34",
-        data=data, ax=ax8)
-    g.set(xlabel='Cell Phones per Household',
-        ylabel='Predicted Cell Phones per Household',
-        title='Predicted Cell Phones (hh_f34) (CNN)')
+    coef1 = r2(data['cluster_monthly_consumption_pc'], data['predicted_monthly_consumption'])
+    g = sns.regplot(x="cluster_monthly_consumption_pc", y="predicted_monthly_consumption",
+        data=data, ax=ax1, scatter_kws={'alpha': 0.2, 'color':'blue'},
+        line_kws={'alpha': 0.5, 'color':'black'})
+    g.set(xlabel='Observed ($)', ylabel='Predicted ($)',
+        title='Consumption: Observed vs \n Predicted (R$^2$={})'.format(str(coef1)),
+        xlim=(0, 400), ylim=(0, 400))
+
+    # coef2 = r2(data['cluster_monthly_phone_cost_pc'], data['???']) #predicted phone cost
+    # g = sns.regplot(x="cluster_monthly_phone_cost_pc", y="???", #predicted phone cost
+    #     data=data, ax=ax2, scatter_kws={'alpha': 0.2, 'color':'blue'},
+    #     line_kws={'alpha': 0.5, 'color':'black'})
+    # g.set(xlabel='Observed ($)', ylabel='Predicted ($)', #predicted phone cost
+    #     title='Phone Cost: Observed vs \n Predicted (R$^2$={})'.format(str(coef2)),
+    #     ylim=(0, 50))
+
+    coef3 = r2(data['cluster_cellphones_pc'], data['predicted_phone_density'])
+    #Check: I'm not sure 'predicted_phone_density' is a density - isn't it penetration rate?
+    g = sns.regplot(x="cluster_cellphones_pc", y="predicted_phone_density",
+        data=data, ax=ax3, scatter_kws={'alpha': 0.2, 'color':'blue'},
+        line_kws={'alpha': 0.5, 'color':'black'})
+    g.set(xlabel='Observed ($)', ylabel='Predicted ($)',
+        title='Phone Penetration: Observed vs \n Predicted (R$^2$={})'.format(str(coef3)),
+        xlim=(0, 1), ylim=(0, 1))
+
+    coef4 = r2(data['cluster_monthly_phone_consumption_pc'],
+            data['predicted_monthly_phone_consumption'])
+    g = sns.regplot(x="cluster_monthly_phone_consumption_pc",
+            y="predicted_monthly_phone_consumption",
+        data=data, ax=ax4, scatter_kws={'alpha': 0.2, 'color':'blue'},
+        line_kws={'alpha': 0.5, 'color':'black'})
+    g.set(xlabel='Observed ($)', ylabel='Predicted ($)', #predicted phone cost
+        title='Phone Consumption: Observed vs \n Predicted (R$^2$={})'.format(str(coef4)),
+        xlim=(0, 15), ylim=(0, 15))
 
     fig.tight_layout()
-    fig.savefig(os.path.join(CLUSTER_FIGURES_DIR, 'regplot.png'))
+    save_dir = os.path.join(CLUSTER_FIGURES_DIR, 'regplot_predictions.png')
+    print(f'Saving figure to {save_dir}')
+    fig.savefig(save_dir)
 
-    return print('Completed regplot')
+    print("Plotting completed")
 
 
 if __name__ == '__main__':
@@ -203,4 +227,15 @@ if __name__ == '__main__':
 
     data = prepare_data()
 
+    # Index(['cluster_lat', 'cluster_lon', 'cluster_persons_surveyed',
+    #    'cluster_annual_consumption_pc', 'cluster_annual_phone_consumption_pc',
+    #    'cluster_cellphones_pc', 'cluster_estimated_annual_phone_cost_pc',
+    #    'cluster_nightlights', 'predicted_consumption',
+    #    'predicted_log_consumption', 'predicted_phone_consumption',
+    #    'predicted_log_phone_consumption', 'predicted_phone_density',
+    #    'predicted_log_phone_density', 'cluster_population_density_1km2'],
+    #   dtype='object')
+
     create_regplot(data)
+
+    create_prediction_regplot(data)
