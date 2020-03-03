@@ -36,7 +36,7 @@ def create_folders():
     Function to create desired folder.
 
     """
-    os.makedirs(os.path.join(RESULTS_DIR, 'figures'), exist_ok=False)
+    os.makedirs(os.path.join(RESULTS_DIR, 'figures'), exist_ok=True)
 
 
 def create_plot(country, metric, min_population=100, under_color='b'):
