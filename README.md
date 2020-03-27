@@ -3,7 +3,7 @@ Telecoms Analytics for Demand using Deep Learning (taddle)
 
 Description
 ===========
-**taddle** is a predictive codebase for estimating telecoms demand in areas of poor data
+**taddle** is a predictive codebase for estimating telecomms demand in areas of poor data
 availability.
 
 

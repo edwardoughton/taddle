@@ -10,20 +10,14 @@ Winter 2020
 import configparser
 import pandas as pd
 import numpy as np
+import random
 import math
 import geoio
 import os
-import numpy as np
-import pandas as pd
-import random
 from scipy import stats
-from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import KFold
 import sklearn.linear_model as linear_model
-import matplotlib.pyplot as plt
-from matplotlib.collections import EllipseCollection
-import seaborn as sns
 import joblib
 from sklearn import metrics
 import pickle
@@ -48,10 +42,12 @@ CLUSTER_PREDICTIONS_DIR = f'data/LSMS/{COUNTRY}/output/cluster_predictions.csv'
 
 # Purchasing Power Adjustment
 PPP = float(CONFIG['DEFAULT']['PPP'])
+SEED = int(CONFIG['DEFAULT']['SEED'])
 
 CNN_LSMS_CLUSTER_FEATS = f'data/LSMS/{COUNTRY}/processed/cluster_feats.npy'
 CNN_LSMS_CLUSTER_ORDER = f'data/LSMS/{COUNTRY}/processed/cluster_order.pkl'
 
+np.random.seed(SEED)
 
 def create_folders():
     """
@@ -240,12 +236,12 @@ class CreateRidge:
         y_log = np.log(y + 0.0001)
 
         print(f'Training model on log {metric}...')
-        y_hat_log, r2, _, _ = self.predict_metric(self.cluster_feats, y_log)
+        y_hat_log, r2, _, _ = predict_metric(self.cluster_feats, y_log)
         print(f'R2: {r2}')
         print()
 
         print(f'Training model on {metric}...')
-        y_hat, r2, ridges, scalers = self.predict_metric(self.cluster_feats, y)
+        y_hat, r2, ridges, scalers = predict_metric(self.cluster_feats, y)
         print(f'R2: {r2}')
         print()
 
@@ -261,282 +257,283 @@ class CreateRidge:
         self.cluster_results[f'predicted_log_{metric}'] = y_hat_log
 
 
-    def predict_metric(self, X, y, k=5, k_inner=5, points=10, alpha_low=1,
-        alpha_high=5, margin=0.25):
-        """
-        Predict metric method.
+def predict_metric(X, y, k=5, k_inner=5, points=10, alpha_low=1,
+    alpha_high=5, margin=0.25):
+    """
+    Predict metric method.
 
-        Parameters
-        ----------
-        X : float
+    Parameters
+    ----------
+    X : float
 
-        y : float
+    y : float
 
-        k : int
+    k : int
 
-        k_inner : int
+    k_inner : int
 
-        points : int
+    points : int
 
-        alpha_low : int
+    alpha_low : int
 
-        alpha_high : int
+    alpha_high : int
 
-        margin : float
+    margin : float
 
-        Returns
-        -------
-        y_hat : float
+    Returns
+    -------
+    y_hat : float
 
-        r2 : float
+    r2 : float
 
-        ridges :
+    ridges :
 
-        scalers :
+    scalers :
 
-        """
-        y_hat, r2, ridges, scalers = self.run_cv(
-            X, y, k, k_inner, points, alpha_low, alpha_high)
+    """
+    y_hat, r2, ridges, scalers = run_cv(
+        X, y, k, k_inner, points, alpha_low, alpha_high)
 
-        return y_hat, r2, ridges, scalers
+    return y_hat, r2, ridges, scalers
 
 
-    def run_cv(self, X, y, k, k_inner, points, alpha_low, alpha_high,
-        randomize=False):
-        """
-        Runs nested cross-validation to make predictions and compute
-        r-squared.
+def run_cv(X, y, k, k_inner, points, alpha_low, alpha_high,
+    randomize=False):
+    """
+    Runs nested cross-validation to make predictions and compute
+    r-squared.
 
-        Parameters
-        ----------
-        X : float
+    Parameters
+    ----------
+    X : float
 
-        y : float
+    y : float
 
-        k : int
+    k : int
 
-        k_inner : int
+    k_inner : int
 
-        points : int
+    points : int
 
-        alpha_low : int
+    alpha_low : int
 
-        alpha_high : int
+    alpha_high : int
 
-        randomize : string
+    randomize : string
 
-        Returns
-        -------
-        y_hat : float
+    Returns
+    -------
+    y_hat : float
 
-        r2.mean() : float
+    r2.mean() : float
 
-        ridges :
+    ridges :
 
-        scalers :
+    scalers :
 
-        """
-        alphas = np.logspace(alpha_low, alpha_high, points)
-        r2s = np.zeros((k,))
+    """
+    alphas = np.logspace(alpha_low, alpha_high, points)
+    r2s = np.zeros((k,))
+    y_hat = np.zeros_like(y)
+    kf = KFold(n_splits=k, shuffle=True)
+    fold = 0
+
+    ridges = []
+    scalers = []
+
+    for train_idx, test_idx in kf.split(X):
+
+        r2s, y_hat, fold, ridge, scaler = evaluate_fold(
+            X, y, train_idx, test_idx, k_inner, alphas, r2s,
+            y_hat, fold, randomize)
+
+        ridges.append(ridge)
+        scalers.append(scaler)
+
+    print('r2s:', r2s)
+    return y_hat, r2s.mean(), ridges, scalers
+
+
+def evaluate_fold(X, y, train_idx, test_idx, k_inner,
+    alphas, r2s, y_hat, fold, randomize):
+    """
+    Evaluates one fold of outer CV.
+
+    Parameters
+    ----------
+    X : float
+
+    y : float
+
+    train_idx :
+
+    test_idx :
+
+    k_inner : int
+
+    alphas :
+
+    r2s :
+
+    y_hat : float
+
+    fold :
+
+    randomize :
+
+    Returns
+    -------
+    r2s : float
+
+    y_hat : float
+
+    fold + 1 : float
+
+    ridges :
+
+    scalers :
+
+    """
+    X_train, X_test = X[train_idx], X[test_idx]
+    y_train, y_test = y[train_idx], y[test_idx]
+
+    if randomize:
+        random.shuffle(y_train)
+
+    best_alpha = find_best_alpha(X_train, y_train, k_inner, alphas)
+    X_train, X_test, scaler = scale_features(X_train, X_test)
+    y_test_hat, ridge = train_and_predict_ridge(
+        best_alpha, X_train, y_train, X_test)
+    r2 = stats.pearsonr(y_test, y_test_hat)[0] ** 2
+    r2s[fold] = r2
+    y_hat[test_idx] = y_test_hat
+
+    return r2s, y_hat, fold + 1, ridge, scaler
+
+
+def scale_features(X_train, X_test):
+    """
+    Scales features using StandardScaler.
+
+    Parameters
+    ----------
+    X_train : float
+
+    X_test : float
+
+    Return
+    ------
+    X_train : float
+
+    X_test : float
+
+    X_scaler : float
+
+    """
+    X_scaler = StandardScaler(with_mean=True, with_std=False)
+    X_train = X_scaler.fit_transform(X_train)
+    X_test = X_scaler.transform(X_test)
+
+    return X_train, X_test, X_scaler
+
+
+def train_and_predict_ridge(alpha, X_train, y_train, X_test):
+    """
+    Trains ridge model and predicts test set.
+
+    Parameters
+    ----------
+    alpha : float
+
+    X_train : float
+
+    y_train : float
+
+    X_test : float
+
+    Return
+    ------
+    y_hat : float
+
+    ridge :
+
+    """
+    ridge = linear_model.Ridge(alpha)
+    ridge.fit(X_train, y_train)
+    y_hat = ridge.predict(X_test)
+
+    return y_hat, ridge
+
+
+def predict_inner_test_fold(X, y, y_hat, train_idx, test_idx, alpha):
+    """
+    Predicts inner test fold.
+
+    Parameters
+    ----------
+    X : float
+
+    y : float
+
+    y_hat : float
+
+    train_idx :
+
+    test_idx :
+
+    alphas :
+
+    Returns
+    -------
+    y_hat : float
+
+    """
+    X_train, X_test = X[train_idx], X[test_idx]
+    y_train, y_test = y[train_idx], y[test_idx]
+    X_train, X_test, _ = scale_features(X_train, X_test)
+    y_hat[test_idx], _ = train_and_predict_ridge(
+        alpha, X_train, y_train, X_test)
+
+    return y_hat
+
+
+def find_best_alpha(X, y, k_inner, alphas):
+    """
+    Finds the best alpha in an inner CV loop.
+
+    Parameters
+    ----------
+    X : float
+
+    y : float
+
+    k_inner :
+
+    alphas :
+
+    Return
+    ------
+    best_alpha : float
+
+    """
+    kf = KFold(n_splits=k_inner, shuffle=True)
+    best_alpha = 0
+    best_r2 = 0
+
+    for idx, alpha in enumerate(alphas):
+
         y_hat = np.zeros_like(y)
-        kf = KFold(n_splits=k, shuffle=True)
-        fold = 0
-
-        ridges = []
-        scalers = []
 
         for train_idx, test_idx in kf.split(X):
-
-            r2s, y_hat, fold, ridge, scaler = self.evaluate_fold(
-                X, y, train_idx, test_idx, k_inner, alphas, r2s,
-                y_hat, fold, randomize)
-
-            ridges.append(ridge)
-            scalers.append(scaler)
-
-        return y_hat, r2s.mean(), ridges, scalers
-
-
-    def evaluate_fold(self, X, y, train_idx, test_idx, k_inner,
-        alphas, r2s, y_hat, fold, randomize):
-        """
-        Evaluates one fold of outer CV.
-
-        Parameters
-        ----------
-        X : float
-
-        y : float
-
-        train_idx :
-
-        test_idx :
-
-        k_inner : int
-
-        alphas :
-
-        r2s :
-
-        y_hat : float
-
-        fold :
-
-        randomize :
-
-        Returns
-        -------
-        r2s : float
-
-        y_hat : float
-
-        fold + 1 : float
-
-        ridges :
-
-        scalers :
-
-        """
-        X_train, X_test = X[train_idx], X[test_idx]
-        y_train, y_test = y[train_idx], y[test_idx]
-
-        if randomize:
-            random.shuffle(y_train)
-
-        best_alpha = self.find_best_alpha(X_train, y_train, k_inner, alphas)
-        X_train, X_test, scaler = self.scale_features(X_train, X_test)
-        y_test_hat, ridge = self.train_and_predict_ridge(
-            best_alpha, X_train, y_train, X_test)
-        r2 = stats.pearsonr(y_test, y_test_hat)[0] ** 2
-        r2s[fold] = r2
-        y_hat[test_idx] = y_test_hat
-
-        return r2s, y_hat, fold + 1, ridge, scaler
-
-
-    def scale_features(self, X_train, X_test):
-        """
-        Scales features using StandardScaler.
-
-        Parameters
-        ----------
-        X_train : float
-
-        X_test : float
-
-        Return
-        ------
-        X_train : float
-
-        X_test : float
-
-        X_scaler : float
-
-        """
-        X_scaler = StandardScaler(with_mean=True, with_std=False)
-        X_train = X_scaler.fit_transform(X_train)
-        X_test = X_scaler.transform(X_test)
-
-        return X_train, X_test, X_scaler
-
-
-    def train_and_predict_ridge(self, alpha, X_train, y_train, X_test):
-        """
-        Trains ridge model and predicts test set.
-
-        Parameters
-        ----------
-        alpha : float
-
-        X_train : float
-
-        y_train : float
-
-        X_test : float
-
-        Return
-        ------
-        y_hat : float
-
-        ridge :
-
-        """
-        ridge = linear_model.Ridge(alpha)
-        ridge.fit(X_train, y_train)
-        y_hat = ridge.predict(X_test)
-
-        return y_hat, ridge
-
-
-    def predict_inner_test_fold(self, X, y, y_hat, train_idx, test_idx, alpha):
-        """
-        Predicts inner test fold.
-
-        Parameters
-        ----------
-        X : float
-
-        y : float
-
-        y_hat : float
-
-        train_idx :
-
-        test_idx :
-
-        alphas :
-
-        Returns
-        -------
-        y_hat : float
-
-        """
-        X_train, X_test = X[train_idx], X[test_idx]
-        y_train, y_test = y[train_idx], y[test_idx]
-        X_train, X_test, _ = self.scale_features(X_train, X_test)
-        y_hat[test_idx], _ = self.train_and_predict_ridge(
-            alpha, X_train, y_train, X_test)
-
-        return y_hat
-
-
-    def find_best_alpha(self, X, y, k_inner, alphas):
-        """
-        Finds the best alpha in an inner CV loop.
-
-        Parameters
-        ----------
-        X : float
-
-        y : float
-
-        k_inner :
-
-        alphas :
-
-        Return
-        ------
-        best_alpha : float
-
-        """
-        kf = KFold(n_splits=k_inner, shuffle=True)
-        best_alpha = 0
-        best_r2 = 0
-
-        for idx, alpha in enumerate(alphas):
-
-            y_hat = np.zeros_like(y)
-
-            for train_idx, test_idx in kf.split(X):
-                y_hat = self.predict_inner_test_fold(
-                    X, y, y_hat, train_idx, test_idx, alpha)
-            r2 = stats.pearsonr(y, y_hat)[0] ** 2
-
-            if r2 > best_r2:
-                best_alpha = alpha
-                best_r2 = r2
-
-        return best_alpha
+            y_hat = predict_inner_test_fold(
+                X, y, y_hat, train_idx, test_idx, alpha)
+        r2 = stats.pearsonr(y, y_hat)[0] ** 2
+
+        if r2 > best_r2:
+            best_alpha = alpha
+            best_r2 = r2
+
+    return best_alpha
 
 
 if __name__ == '__main__':
