@@ -17,6 +17,7 @@ import matplotlib.colors
 import geoio
 import math
 import warnings
+from sklearn.metrics import r2_score
 warnings.filterwarnings('ignore')
 
 CONFIG_DATA = configparser.ConfigParser()
@@ -163,7 +164,7 @@ def create_prediction_regplot(data):
 
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 6))
 
-    coef1 = corr_coef(data['cluster_cellphones_pc'], data['predicted_phone_density'])
+    coef1 = round(r2_score(data['cluster_cellphones_pc'], data['predicted_phone_density']), 2)
     #Check: I'm not sure 'predicted_phone_density' is a density - isn't it penetration rate?
     g = sns.regplot(x="cluster_cellphones_pc", y="predicted_phone_density",
         data=data, ax=ax1, scatter_kws={'alpha': 0.2, 'color':'blue'},
@@ -172,7 +173,7 @@ def create_prediction_regplot(data):
         title='Cell Phones Per Capita:\nObserved vs Predicted (R$^2$={})'.format(str(coef1)),
         xlim=(0, 0.6), ylim=(0, 0.6))
 
-    coef2 = corr_coef(data['cluster_monthly_phone_consumption_pc'], data['predicted_monthly_phone_consumption'])
+    coef2 = round(r2_score(data['cluster_monthly_phone_consumption_pc'], data['predicted_monthly_phone_consumption']), 2)
     g = sns.regplot(x="cluster_monthly_phone_consumption_pc", y="predicted_monthly_phone_consumption",
         data=data, ax=ax2, scatter_kws={'alpha': 0.2, 'color':'blue'},
         line_kws={'alpha': 0.5, 'color':'black'})
