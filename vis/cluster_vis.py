@@ -131,7 +131,7 @@ def create_regplot(data):
         data=data, ax=ax2, scatter_kws={'alpha': 0.2, 'color':'blue'},
         line_kws={'alpha': 0.5, 'color':'black'})
     g.set(ylabel='Luminosity (DN)', xlabel='Consumption ($ per month)',
-        title='Luminosity vs\nMonthly Phone Consumption (R={})'.format(str(coef2)),
+        title='Luminosity vs\nAverage Revenue Per User (R={})'.format(str(coef2)),
          xlim=(0, 30), ylim=(0, 50))
 
 
