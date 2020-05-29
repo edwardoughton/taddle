@@ -1,11 +1,11 @@
 """
-Create 10km x 10km grid.
+Create 10km x 10km grid using the country shapefile.
 
 Written by Ed Oughton.
 
 Winter 2020
-
 """
+
 import argparse
 import os
 import configparser
@@ -16,18 +16,21 @@ import numpy as np
 import rasterio
 from rasterstats import zonal_stats
 
-CONFIG = configparser.ConfigParser()
-CONFIG.read('script_config.ini')
+BASE_DIR = '.'
+# repo imports
+import sys
+sys.path.append(BASE_DIR)
+from config import PREDICTION_MAPS_CONFIG
 
-COUNTRY = CONFIG['DEFAULT']['COUNTRY']
-SHAPEFILE_DIR = f'countries/{COUNTRY}/shapefile'
-GRID_DIR = f'countries/{COUNTRY}/grid'
+COUNTRY_ABBRV = PREDICTION_MAPS_CONFIG['COUNTRY_ABBRV']
+COUNTRIES_DIR = os.path.join(BASE_DIR, 'data', 'countries')
+SHAPEFILE_DIR = os.path.join(COUNTRIES_DIR, COUNTRY_ABBRV, 'shapefile')
+GRID_DIR = os.path.join(COUNTRIES_DIR, COUNTRY_ABBRV, 'grid')
 
 
 def create_folders():
     """
     Function to create new folder.
-
     """
     os.makedirs(GRID_DIR, exist_ok=True)
 
@@ -35,7 +38,6 @@ def create_folders():
 def generate_grid(country):
     """
     Generate a 10x10km spatial grid for the chosen country.
-
     """
     filename = 'national_outline_{}.shp'.format(country)
     country_outline = gpd.read_file(os.path.join(SHAPEFILE_DIR, filename))
@@ -74,9 +76,8 @@ def generate_grid(country):
 def query_settlement_layer(grid):
     """
     Query the settlement layer to get an estimated population for each grid square.
-
     """
-    path = os.path.join(SHAPEFILE_DIR, f'{COUNTRY}.tif')
+    path = os.path.join(SHAPEFILE_DIR, f'{COUNTRY_ABBRV}.tif')
 
     grid['population'] = pd.DataFrame(
         zonal_stats(vectors=grid['geometry'], raster=path, stats='sum'))['sum']
@@ -87,7 +88,5 @@ def query_settlement_layer(grid):
 
 
 if __name__ == '__main__':
-
     create_folders()
-
-    generate_grid(COUNTRY)
+    generate_grid(COUNTRY_ABBRV)

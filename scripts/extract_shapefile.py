@@ -1,11 +1,11 @@
 """
-Preprocessing scripts.
+Extract and preprocess shapefile for chosen country using GADM data
 
 Written by Ed Oughton.
 
 Winter 2020
-
 """
+
 import os
 import configparser
 import pandas as pd
@@ -14,18 +14,20 @@ import rasterio
 from rasterio.mask import mask
 import json
 from fiona.crs import from_epsg
-
 from shapely.geometry import MultiPolygon, Polygon, mapping, box
 
-CONFIG = configparser.ConfigParser()
-CONFIG.read('script_config.ini')
+BASE_DIR = '.'
+# repo imports
+import sys
+sys.path.append(BASE_DIR)
+from config import PREDICTION_MAPS_CONFIG
 
-COUNTRY = CONFIG['DEFAULT']['COUNTRY']
-SHAPEFILE_DIR = f'countries/{COUNTRY}/shapefile'
+COUNTRY_ABBRV = PREDICTION_MAPS_CONFIG['COUNTRY_ABBRV']
+COUNTRIES_DIR = os.path.join(BASE_DIR, 'data', 'countries')
+SHAPEFILE_DIR = os.path.join(COUNTRIES_DIR, COUNTRY_ABBRV, 'shapefile')
 
 
 def create_folders():
-    os.makedirs(f'countries/{COUNTRY}', exist_ok=True)
     os.makedirs(SHAPEFILE_DIR, exist_ok=True)
 
 
@@ -33,20 +35,18 @@ def process_country_shapes():
     """
     Created a set of global country shapes. Adds the single
     national boundary for each country to each country folder.
-
     """
     path_processed = os.path.join(
-        SHAPEFILE_DIR, 'national_outline_{}.shp'.format(COUNTRY))
+        SHAPEFILE_DIR, 'national_outline_{}.shp'.format(COUNTRY_ABBRV))
 
+    single_country = None
     if not os.path.exists(path_processed):
-
         print('Working on national outline')
-        path_raw = os.path.join(
-            'data', 'gadm36_levels_shp', 'gadm36_0.shp')
+        path_raw = os.path.join(BASE_DIR, 'data', 'gadm36_levels_shp', 'gadm36_0.shp')
         countries = geopandas.read_file(path_raw)
 
         for name in countries.GID_0.unique():
-            if not name == COUNTRY:
+            if not name == COUNTRY_ABBRV:
                 continue
 
             print('Working on {}'.format(name))
@@ -64,6 +64,11 @@ def process_country_shapes():
 
             print('Writing national outline to file')
             single_country.to_file(path_processed, driver='ESRI Shapefile')
+            found = True
+            break
+        
+        if not found:
+            raise ValueError(f'country abbrv {COUNTRY_ABBRV} does not exist')
 
     else:
         single_country = geopandas.read_file(path_processed)
@@ -74,9 +79,8 @@ def process_country_shapes():
 def process_regions(gadm_level):
     """
     Function for processing subnational regions.
-
     """
-    filename = 'regions_{}_{}.shp'.format(gadm_level, COUNTRY)
+    filename = 'regions_{}_{}.shp'.format(gadm_level, COUNTRY_ABBRV)
     path_processed = os.path.join(SHAPEFILE_DIR, filename)
 
     if not os.path.exists(path_processed):
@@ -88,12 +92,12 @@ def process_regions(gadm_level):
         regions = geopandas.read_file(path_regions)
 
         path_countries = os.path.join(SHAPEFILE_DIR,
-            'national_outline_{}.shp'.format(COUNTRY))
+            'national_outline_{}.shp'.format(COUNTRY_ABBRV))
         countries = geopandas.read_file(path_countries)
 
         for name in countries.GID_0.unique():
 
-            if not name == COUNTRY:
+            if not name == COUNTRY_ABBRV:
                 continue
 
             print('Working on {}'.format(name))
@@ -136,7 +140,6 @@ def exclude_small_shapes(x,regionalized=False):
     Returns:
         *MultiPolygon* : a shapely geometry MultiPolygon without
         tiny shapes.
-
     """
     # if its a single polygon, just return the polygon geometry
     if x.geometry.geom_type == 'Polygon':
@@ -186,7 +189,7 @@ def process_settlement_layer(single_country):
     """
     """
     path_settlements = os.path.join(
-        'data', 'world_population','ppp_2020_1km_Aggregated.tif')
+        BASE_DIR, 'data', 'world_population','ppp_2020_1km_Aggregated.tif')
 
     settlements = rasterio.open(path_settlements)
 
@@ -210,7 +213,7 @@ def process_settlement_layer(single_country):
                     "transform": out_transform,
                     "CRS": 'epsg:4326'})
 
-    shape_path = os.path.join(SHAPEFILE_DIR, '{}.tif'.format(COUNTRY))
+    shape_path = os.path.join(SHAPEFILE_DIR, '{}.tif'.format(COUNTRY_ABBRV))
     with rasterio.open(shape_path, "w", **out_meta) as dest:
         dest.write(out_img)
 
@@ -219,7 +222,6 @@ def process_settlement_layer(single_country):
 
 
 if __name__ == '__main__':
-
     gadm_level = 3
     create_folders()
 

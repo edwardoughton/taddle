@@ -1,14 +1,11 @@
 """
-Create plots of grid-level predictions across a country
+Visualize grid-level predictions across a country
 
-Written by Jatin Mathur and Ed Oughton.
-
-Winter 2020
-
+Written by Jatin Mathur
+5/2020
 """
 import os
 import sys
-import configparser
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -17,29 +14,35 @@ from shapely.geometry.point import Point
 import matplotlib.cm as cm
 import matplotlib.colors as colors
 import contextily as ctx
-sys.path.append('.')
+
+BASE_DIR = '.'
+import sys
+sys.path.append(BASE_DIR)
 from utils import merge_on_lat_lon
+from config import PREDICTION_MAPS_CONFIG
 
-import warnings
-warnings.filterwarnings('ignore')
+COUNTRIES_DIR = os.path.join(BASE_DIR, 'data', 'countries')
+RESULTS_DIR = os.path.join(BASE_DIR, 'results')
 
-CONFIG = configparser.ConfigParser()
-CONFIG.read('script_config.ini')
+COUNTRY_ABBRV = PREDICTION_MAPS_CONFIG['COUNTRY_ABBRV']
+CNN_GRID_OUTPUTS = os.path.join(RESULTS_DIR, 'prediction_maps', COUNTRY_ABBRV, 'cnn')
+FIGURES_DIR = os.path.join(RESULTS_DIR, 'prediction_maps', COUNTRY_ABBRV, 'figures')
+GRID_DIR = os.path.join(COUNTRIES_DIR, COUNTRY_ABBRV, 'grid')
 
-COUNTRY = CONFIG['DEFAULT']['COUNTRY']
-GRID_DIR = f'countries/{COUNTRY}/grid'
-RESULTS_DIR = f'countries/{COUNTRY}/results/'
+TYPE = PREDICTION_MAPS_CONFIG['TYPE']
+COUNTRY = PREDICTION_MAPS_CONFIG['COUNTRY']
+METRIC = PREDICTION_MAPS_CONFIG['METRIC']
+
+assert TYPE in ['single_country', 'country_held_out']
+assert COUNTRY in ['malawi_2016', 'ethiopia_2015']
+assert METRIC in ['house_has_cellphone', 'est_monthly_phone_cost_pc']
 
 
 def create_folders():
-    """
-    Function to create desired folder.
-
-    """
-    os.makedirs(os.path.join(RESULTS_DIR, 'figures'), exist_ok=True)
+    os.makedirs((FIGURES_DIR), exist_ok=True)
 
 
-def create_plot(country, metric, min_population=100, under_color='b'):
+def create_plot(min_population=100, under_color='gray'):
     """
     This method creates a geospatial figure depicting the predictions
     for a given metric within a grid.
@@ -50,10 +53,6 @@ def create_plot(country, metric, min_population=100, under_color='b'):
 
     Parameters
     ----------
-    country : string
-        Country to plot (ISO 3 digit code).
-    metric : string
-        Metric to plot (consumption, phone_consumption, phone_density).
     min_population : int
         The minimum population a grid should have to included in
         the scale `under_color`. And squares with populations under
@@ -61,14 +60,13 @@ def create_plot(country, metric, min_population=100, under_color='b'):
         in `under_color`.
     under_color : string
         Desired color for areas which don't exceed `min_population`.
-
     """
-    print(f'creating plot for {metric}')
+    print(f'creating plot for {METRIC}')
     df_geo = gpd.read_file(os.path.join(GRID_DIR, 'grid.shp'))
     df_geo['centroid'] = df_geo['geometry'].centroid
     df_geo['centroid_lat'] = df_geo['centroid'].apply(lambda point: point.y)
     df_geo['centroid_lon'] = df_geo['centroid'].apply(lambda point: point.x)
-    preds = pd.read_csv(os.path.join(RESULTS_DIR, f'ridge_{metric}', 'predictions.csv'))
+    preds = pd.read_csv(os.path.join(CNN_GRID_OUTPUTS, f'pred_{METRIC}.csv'))
 
     if min_population is None:
         df_geo['to_ignore'] = False
@@ -82,9 +80,9 @@ def create_plot(country, metric, min_population=100, under_color='b'):
     geometry = df_geo['geometry']
 
     # if prediction is under 0, set to 0
-    coloring_guide = df_geo[f'predicted_{metric}_pc']
+    coloring_guide = df_geo[f'pred_{METRIC}']
     coloring_guide.loc[coloring_guide < 0] = 0
-    vmin = coloring_guide.mean() - 3 * coloring_guide.std()
+    vmin = max(coloring_guide.mean() - 3 * coloring_guide.std(), coloring_guide.min())
     if vmin < 0 or vmin - 0 < 0.05:
         vmin = 0
 
@@ -93,7 +91,11 @@ def create_plot(country, metric, min_population=100, under_color='b'):
 
     cmap = cm.get_cmap('inferno')
     cmap.set_under(under_color)
-    vmax = coloring_guide.mean() + 3 * coloring_guide.std()
+    vmax = None
+    if METRIC == 'house_has_cellphone':
+        vmax = min(1.0, coloring_guide.max())
+    else:
+        vmax = min(coloring_guide.mean() + 3 * coloring_guide.std(), coloring_guide.max())
 
     kwargs = {
         'vmin': vmin,
@@ -109,37 +111,21 @@ def create_plot(country, metric, min_population=100, under_color='b'):
     gpd.plotting.plot_polygon_collection(ax, geometry, values=coloring_guide, **kwargs)
 
     units = ''
-    if metric in ['consumption', 'phone_consumption']:
+    if METRIC in ['est_monthly_phone_cost_pc']:
         units = '($/year)'
 
-    label = (metric +' per capita').replace('_', ' ')
-    ax.set_title(f'Malawi Predicted {label.title() + units}', fontsize=10)
+    label = METRIC.replace('_', ' ')
+    population_label = '' if min_population is None else f'\n(min. pop. {min_population})'
+    ax.set_title(f'{COUNTRY_ABBRV} Predicted {label.title() + units}{population_label}', fontsize=10)
     ctx.add_basemap(ax, crs=df_geo.crs)
 
-    save_dir = os.path.join(RESULTS_DIR, 'figures', f'predicted_{metric}_per_capita.png')
-    print(f'Saving figure to {save_dir}')
-    plt.savefig(save_dir)
+    savepath = os.path.join(FIGURES_DIR, f'{METRIC}.png')
+    print(f'Saving figure to {savepath}')
+    plt.savefig(savepath)
 
     print('Plotting completed')
 
 
 if __name__ == '__main__':
-
     create_folders()
-
-    arg = '--all'
-    if len(sys.argv) >= 2:
-        arg = sys.argv[1]
-        assert arg in ['--consumption', '--phone-consumption', '--phone-density']
-
-    if arg == '--all':
-        for metric in ['consumption', 'phone_consumption', 'phone_density']:
-            create_plot(COUNTRY, metric)
-    elif arg == '--consumption':
-        create_plot(COUNTRY, 'consumption')
-    elif arg == '--phone-consumption':
-        create_plot(COUNTRY, 'phone_consumption')
-    elif arg == '--phone-density':
-        create_plot(COUNTRY, 'phone_density')
-    else:
-        raise ValueError('Args not handled correctly')
+    create_plot()

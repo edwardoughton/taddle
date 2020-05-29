@@ -2,9 +2,7 @@
 Generate download locations within a country and download them.
 
 Written by Jatin Mathur.
-
-Winter 2020
-
+5/2020
 """
 import os
 import configparser
@@ -22,20 +20,21 @@ from tqdm import tqdm
 import logging
 import time
 
+BASE_DIR = '.'
 # repo imports
 import sys
-sys.path.append('.')
-from utils import ImageryDownloader
+sys.path.append(BASE_DIR)
+from utils import PlanetDownloader
+from config import PREDICTION_MAPS_CONFIG, RANDOM_SEED
 
-CONFIG = configparser.ConfigParser()
-CONFIG.read('script_config.ini')
+COUNTRY_ABBRV = PREDICTION_MAPS_CONFIG['COUNTRY_ABBRV']
+COUNTRIES_DIR = os.path.join(BASE_DIR, 'data', 'countries')
+GRID_DIR = os.path.join(COUNTRIES_DIR, COUNTRY_ABBRV, 'grid')
+IMAGE_DIR = os.path.join(COUNTRIES_DIR, COUNTRY_ABBRV, 'images')
 
-COUNTRY = CONFIG['DEFAULT']['COUNTRY']
-GRID_DIR = f'countries/{COUNTRY}/grid'
-IMAGE_DIR = f'countries/{COUNTRY}/images'
-
+ACCESS_TOKEN_DIR = os.path.join(BASE_DIR, 'planet_api_key.txt')
 ACCESS_TOKEN = None
-with open(CONFIG['DEFAULT']['ACCESS_TOKEN_DIR'], 'r') as f:
+with open(ACCESS_TOKEN_DIR, 'r') as f:
     ACCESS_TOKEN = f.readlines()[0]
 assert ACCESS_TOKEN is not None, print("Access token is not valid")
 
@@ -43,15 +42,14 @@ assert ACCESS_TOKEN is not None, print("Access token is not valid")
 def create_folders():
     """
     Function to create new folders.
-
     """
     os.makedirs(IMAGE_DIR, exist_ok=True)
 
 
 def get_polygon_download_locations(polygon, number, seed=7):
     """
-    Samples NUMBER points evenly but randomly from a polygon. Seed is set to
-    7 for reproducibility.
+    Samples NUMBER points evenly but randomly from a polygon. Seed is set for
+    reproducibility.
 
     At first tries to create sub-grid of size n x n where n = sqrt(number)
     It checks these coordinates and if they are in the polygon it uses them
@@ -59,7 +57,6 @@ def get_polygon_download_locations(polygon, number, seed=7):
     If the number of points found is still less than the desired number,
     samples are taken randomly from the polygon until the required number
     is achieved.
-
     """
     random.seed(seed)
 
@@ -92,12 +89,11 @@ def get_polygon_download_locations(polygon, number, seed=7):
     return points  # returns list of lat/lon pairs
 
 
-def generate_country_download_locations(min_population=100, num_per_grid=20):
+def generate_country_download_locations(min_population=100, num_per_grid=4):
     """
     Generates a defined number of download locations (NUM_PER_GRID) for each
     grid with at least the minimum number of specified residents (MIN_
     POPULATION).
-
     """
     grid = gpd.read_file(os.path.join(GRID_DIR, 'grid.shp'))
     grid = grid[grid['population'] >= min_population]
@@ -130,18 +126,11 @@ def download_images(df):
     """
     Download images using a pandas DataFrame that has "image_lat", "image_lon",
     "image_name" as columns.
-
     """
-    imd = ImageryDownloader(ACCESS_TOKEN)
+    imd = PlanetDownloader(ACCESS_TOKEN)
     zoom = 16
-    # BAD_IMAGE_VALUE = 0.8784313797950745
     NUM_RETRIES = 20
     WAIT_TIME = 0.1 # seconds
-
-    # only download unique images
-    df = df.dropna(
-        subset=['image_lat', 'image_lon', 'image_name']).drop_duplicates(
-        subset=['image_lat', 'image_lon'])
 
     # drops what is already downloaded
     already_downloaded = os.listdir(IMAGE_DIR)
@@ -150,27 +139,32 @@ def download_images(df):
     df = df.set_index('image_name').drop(already_downloaded).reset_index()
     print('Need to download ' + str(len(df)))
 
+    # use three years of images to find one that matches search critera
+    min_year = 2014
+    min_month = 1
+    max_year = 2016
+    max_month = 12
+
     for _, r in tqdm(df.iterrows(), total=df.shape[0]):
         lat = r.image_lat
         lon = r.image_lon
         name = r.image_name
         try:
-            im = imd.download(lat, lon, zoom)
-            if type(im) == str and im == 'RETRY':
+            im = imd.download_image(lat, lon, min_year, min_month, max_year, max_month)
+            if im is None:
                 resolved = False
-                for _ in range(NUM_RETRIES):
-                    time.sleep(WAIT_TIME)
-                    im = imd.download(lat, lon, zoom)
-                    if type(im) == str and im == 'RETRY':
+                for _ in range(num_retries):
+                    time.sleep(wait_time)
+                    im = imd.download_image(lat, lon, min_year, min_month, max_year, max_month)
+                    if im is None:
                         continue
                     else:
-                        plt.imsave(os.path.join(IMAGE_DIR, name), im)
+                        plt.imsave(image_save_path, im)
                         resolved = True
                         break
                 if not resolved:
-                    raise ValueError(
-                        f'Could not download {lat}, {lon}, {zoom} \
-                            despite several retries and waiting')
+                    # print(f'Could not download {lat}, {lon} despite several retries and waiting')
+                    continue
                 else:
                     pass
             else:
@@ -178,11 +172,9 @@ def download_images(df):
                 plt.imsave(os.path.join(IMAGE_DIR, name), im)
 
         except Exception as e:
-            logging.error(
-                f"Error-could not download {lat}, {lon}, {zoom}", \
-                    exc_info=True)
-            break
-
+            # logging.error(f"Error-could not download {lat}, {lon}", exc_info=True)
+            continue
+    return
 
 if __name__ == '__main__':
 

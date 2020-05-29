@@ -1,28 +1,14 @@
-"""
-Handful of utility functions that are used throughout the repository
+'''
+Handful of utility functions used throughout the repo
+'''
 
-Includes:
-    merge_on_lat_lon: merge on dataframes using lat/lon
-    RidgeEnsemble: ensembles Ridge Regression models
-    ImageryDownloader: downloads images usign Google Static Maps API
-    CustomProgressBar: simple carriage-return based "progress bar"
-
-Written by Jatin Mathur
-
-Winter 2020
-
-"""
-
-import requests
-import matplotlib.pyplot as plt
-from io import BytesIO
-import numpy as np
+import math
 import pandas as pd
 
 def merge_on_lat_lon(df1, df2, keys=['cluster_lat', 'cluster_lon'], how='inner'):
     """
-        Allows two dataframes to be merged on lat/lon
-        Necessary because pandas has trouble merging on floats
+    Allows two dataframes to be merged on lat/lon
+    Necessary because pandas has trouble merging on floats (understandably so)
     """
     df1 = df1.copy()
     df2 = df2.copy()
@@ -39,31 +25,9 @@ def merge_on_lat_lon(df1, df2, keys=['cluster_lat', 'cluster_lon'], how='inner')
     merged.drop(['merge_lat', 'merge_lon'], axis=1, inplace=True)
     return merged
 
-class RidgeEnsemble:
-    def __init__(self, ridges, scalers):
-        assert type(ridges) == list and type(scalers) == list and len(ridges) == len(scalers)
-        self.ridges = ridges
-        self.scalers = scalers
+def create_space(lat, lon, s=10):
+    """Creates a s km x s km square centered on (lat, lon)"""
+    v = (180/math.pi)*(500/6378137)*s # roughly 0.045 for s=10
+    return lat - v, lon - v, lat + v, lon + v
     
-    def predict(self, x):
-        predictions = np.zeros(len(x))
-        for ridge, scalar in zip(self.ridges, self.scalers):
-            feats = scalar.transform(x)
-            predictions += ridge.predict(feats)
-        predictions /= len(self.ridges)
-        return predictions
-
-class ImageryDownloader:
-    def __init__(self, access_token):
-        self.access_token = access_token
-        self.url = 'https://maps.googleapis.com/maps/api/staticmap?center={},{}&zoom={}&size=400x400&maptype=satellite&key={}'
     
-    def download(self, lat, long, zoom):
-        res = requests.get(self.url.format(lat, long, zoom, self.access_token))
-        # server needs to make image available, takes a few seconds
-        if res.status_code == 403:
-            return 'RETRY'
-        assert res.status_code < 400, print(f'Error - failed to download {lat}, {long}, {zoom}')
-        image = plt.imread(BytesIO(res.content))
-        return image
-

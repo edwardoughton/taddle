@@ -5,7 +5,7 @@
 *.tif
 *.dta
 .vscode
-api_key.txt
+planet_api_key.txt
 *.pt
 *.pth
 *.joblib
@@ -14,7 +14,6 @@ countries/
 data/
 vis/figures*
 images/*
-scripts/script_config.ini
 cache
 *.zip
 results/*

@@ -1,5 +1,0 @@
-Data pertaining to each country will be placed within this folder. Each country will be a folder containing the following directories:
-- shapefile (generated from the GADM global data layers)
-- grid (generated from the shapefile)
-- images (downloaded from Google Static Maps API)
-- results (outputs from the CNN, grid-level predictions, and figures)
