@@ -29,30 +29,28 @@ def run_randomized_cv(X, y, k=5, k_inner=5, random_seed=7, points=10,
     alphas = np.logspace(alpha_low, alpha_high, points)
     r2s = []
     ridges = []
-    scalers = []
     y_hat = np.zeros_like(y)
     kf = KFold(n_splits=k, shuffle=True)
     fold = 0
     for train_idx, test_idx in kf.split(X):
         if to_print:
             print(f"fold: {fold}", end='\r')
-        r2, y_p, ridge, scaler = evaluate_fold(X, y, train_idx, test_idx, k_inner, alphas, to_print)
+        r2, y_p, ridge = evaluate_fold(X, y, train_idx, test_idx, k_inner, alphas, to_print)
         r2s.append(r2)
         ridges.append(ridge)
-        scalers.append(scaler)
         y_hat[test_idx] = y_p
         fold += 1
-    return np.mean(r2s), y_hat, ridges, scalers
+    return np.mean(r2s), y_hat, ridges
 
 
-def scale_features(X_train, X_test):
-    """
-    Scales features using StandardScaler.
-    """
-    X_scaler = StandardScaler(with_mean=True, with_std=False)
-    X_train = X_scaler.fit_transform(X_train)
-    X_test = X_scaler.transform(X_test)
-    return X_train, X_test, X_scaler
+# def scale_features(X_train, X_test):
+#     """
+#     Scales features using StandardScaler.
+#     """
+#     X_scaler = StandardScaler(with_mean=True, with_std=False)
+#     X_train = X_scaler.fit_transform(X_train)
+#     X_test = X_scaler.transform(X_test)
+#     return X_train, X_test, X_scaler
 
 
 def train_and_predict_ridge(alpha, X_train, y_train, X_test):
@@ -77,7 +75,7 @@ def find_best_alpha(X, y, k_inner, alphas, to_print=False):
         for train_idx, test_idx in kf.split(X):
             X_train, X_test = X[train_idx], X[test_idx]
             y_train, y_test = y[train_idx], y[test_idx]
-            X_train, X_test, _ = scale_features(X_train, X_test)
+            # X_train, X_test, _ = scale_features(X_train, X_test)
             y_hat[test_idx], _ = train_and_predict_ridge(alpha, X_train, y_train, X_test)
         r2 = metrics.r2_score(y, y_hat)
         if r2 > best_r2:
@@ -95,10 +93,10 @@ def evaluate_fold(X, y, train_idx, test_idx, k_inner, alphas, to_print=False):
     X_train, X_test = X[train_idx], X[test_idx]
     y_train, y_test = y[train_idx], y[test_idx]
     best_alpha = find_best_alpha(X_train, y_train, k_inner, alphas, to_print)
-    X_train, X_test, scaler = scale_features(X_train, X_test)
+    # X_train, X_test, scaler = scale_features(X_train, X_test)
     y_test_hat, ridge = train_and_predict_ridge(best_alpha, X_train, y_train, X_test)
     r2 = metrics.r2_score(y_test, y_test_hat)
-    return r2, y_test_hat, ridge, scaler
+    return r2, y_test_hat, ridge
 
 
 def run_spatial_cv(X, y, groups, k_inner=5, random_seed=7, points=10,
@@ -112,7 +110,6 @@ def run_spatial_cv(X, y, groups, k_inner=5, random_seed=7, points=10,
     k = int(groups.max() + 1)
     r2s = []
     ridges = []
-    scalers = []
     y_hat = np.zeros_like(y)
     fold = 0
     for i in range(k):
@@ -120,13 +117,12 @@ def run_spatial_cv(X, y, groups, k_inner=5, random_seed=7, points=10,
         test_idx = groups == i
         if to_print:
             print(f"fold: {fold}", end='\r')
-        r2, y_p, ridge, scaler = evaluate_spatial_fold(X, y, groups, train_idx, test_idx, alphas)
+        r2, y_p, ridge = evaluate_spatial_fold(X, y, groups, train_idx, test_idx, alphas)
         ridges.append(ridge)
-        scalers.append(scaler)
         r2s.append(r2)
         y_hat[test_idx] = y_p
         fold += 1
-    return np.mean(r2s), y_hat, ridges, scalers
+    return np.mean(r2s), y_hat, ridges
 
 
 def evaluate_spatial_fold(X, y, groups, train_idx, test_idx, alphas):
@@ -134,10 +130,10 @@ def evaluate_spatial_fold(X, y, groups, train_idx, test_idx, alphas):
     y_train, y_test = y[train_idx], y[test_idx]
     groups_train = groups[train_idx]
     best_alpha = find_best_alpha_spatial(X_train, y_train, groups_train, alphas)
-    X_train, X_test, scaler = scale_features(X_train, X_test)
+    # X_train, X_test, scaler = scale_features(X_train, X_test)
     y_test_hat, ridge = train_and_predict_ridge(best_alpha, X_train, y_train, X_test)
     r2 = metrics.r2_score(y_test, y_test_hat)
-    return r2, y_test_hat, ridge, scaler
+    return r2, y_test_hat, ridge
 
 
 def find_best_alpha_spatial(X, y, groups, alphas):
@@ -155,7 +151,7 @@ def find_best_alpha_spatial(X, y, groups, alphas):
             test_idx = groups == g
             X_train, X_test = X[train_idx], X[test_idx]
             y_train, y_test = y[train_idx], y[test_idx]
-            X_train, X_test, _ = scale_features(X_train, X_test)
+            # X_train, X_test, _ = scale_features(X_train, X_test)
             y_hat[test_idx], _ = train_and_predict_ridge(alpha, X_train, y_train, X_test)
         r2 = metrics.r2_score(y, y_hat)
         if r2 > best_r2:

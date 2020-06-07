@@ -3,15 +3,13 @@ Ensembles ridge regression models to do grid-level predictions with equal voting
 '''
 import numpy as np
 class RidgeEnsemble:
-    def __init__(self, ridges, scalers):
-        assert type(ridges) == list and type(scalers) == list and len(ridges) == len(scalers)
+    def __init__(self, ridges):
+        assert type(ridges) == list
         self.ridges = ridges
-        self.scalers = scalers
     
     def predict(self, x):
         predictions = np.zeros(len(x))
-        for ridge, scalar in zip(self.ridges, self.scalers):
-            feats = scalar.transform(x)
-            predictions += ridge.predict(feats)
+        for ridge in self.ridges:
+            predictions += ridge.predict(x)
         predictions /= len(self.ridges)
         return predictions

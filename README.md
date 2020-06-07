@@ -64,8 +64,8 @@ You can visualize the predictions by running:
 ```
 python vis/cluster_vis.py
 ```
-This creates an observed vs predicted plot with prediction intervals. Prediction intervals interpret the prediction of the Ridge Regression model as the mean of a Gaussian. We can find the 
-optimal standard deviation of this Gaussian using the predicted and observed values.
+This creates an observed vs predicted plot with prediction intervals. Prediction intervals use the probabilistic formulation of Ridge Regression. They interpret the prediction of the Ridge Regression model as the mean of a Gaussian. We can find the optimal standard deviation of this Gaussian through some algebra. Note that ensembling five ridge models together does not change the calculation because the ensemble can be expressed as a single ridge model whose weights and regularization coefficient are the average of the five ridge models.
+
 
 Create Prediction Maps
 =======================
@@ -104,7 +104,7 @@ features within each grid, and then using the Ridge Regression models to predict
 An example is shown below:
 
 <p align="center">
-  <img src="figures/predicted_phone_density_per_capita.png" width="450" height="900">
+  <img src="figures/house_has_cellphone.png"></img>
 </p>
 
 The color gray indicates regions with too few people (under 100) to be considered. This probably means water, forests, deserts or some other less habitable terrain.
@@ -113,13 +113,9 @@ Results
 =======
 - Model performances are outlined below
 
-| Model              |  Metric       | Score     |
-| ------------------ |:-------------:| :-------: |
-| CNN                | accuracy      |   0.69    |
-| Phone Consumption  | R^2           |   0.375   |
-| Phone Density      | R^2           |   0.503   |
-| Consumption        | R^2           |   0.268   |
-
+<p align="center">
+  <img src="figures/results.png"></img>
+</p>
 
 Runtime Guide
 ======================
@@ -137,4 +133,4 @@ Consortium (EP/N017064/1) and a subsequent EPSRC Impact Accelerator Award.
 Contributors
 ============
 - Edward J. Oughton (University of Oxford)
-- Jatin Mathur (University of Illinois), contact: jatinm2@illinois.edu
+- Jatin Mathur (jatinm2@illinois.edu)

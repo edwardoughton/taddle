@@ -37,14 +37,21 @@ def load_data():
     return pd.read_csv(os.path.join(RESULTS_DIR, TYPE, COUNTRY, METRIC, 'cluster_predictions', f'{METRIC}.csv'))
 
 
+def solve_std(y_train, y_hat_train):
+    # probabilistic linear regression has this solution for the optimal standard deviation after finding the predictions
+    # see paper for assumptions made
+    std = np.sqrt(((y_hat_train - y_train)**2).sum() / len(y_train))
+    return std
+
+
 def plot_predictions():
     df_preds = load_data()
+    df_train = df_preds[df_preds['is_train']]
+    std = solve_std(df_train[METRIC].values, df_train[f'pred_{METRIC}'].values)
     df_valid = df_preds[~df_preds['is_train']]
     y = df_valid[METRIC].values
     yhat = df_valid[f'pred_{METRIC}'].values
-    # probabilistic linear regression has this solution for
-    # recovering the standard deviation after finding the predictions
-    std = np.sqrt(((yhat - y)**2).sum() / len(yhat))
+    r2 = r2_score(y, yhat)
     # for the purposes of clean plotting, we won't show anything too far beyond 
     # the max of what our model predicts
     max_y = None if METRIC == 'house_has_cellphone' else max(yhat) + 2
@@ -54,7 +61,6 @@ def plot_predictions():
     # these are ordered for the plotting
     y_i = np.unique(y)
     yhat_i = np.poly1d(np.polyfit(y, yhat, 1))(np.unique(y))
-    r2 = r2_score(y, yhat)
     pi = 1 * std # prediction interval
 
     fig, ax = plt.subplots()
@@ -66,7 +72,15 @@ def plot_predictions():
     ax.fill_between(y_i, (yhat_i - pi), (yhat_i + pi), color='b', alpha=.1)
     ax.set_xlabel('Observed Value')
     ax.set_ylabel('Predicted Value')
-    ax.set_title(f'{COUNTRY} Observed vs Actual with Prediction Intervals (1 std)\nMetric: {METRIC}')
+
+    label = None
+    if METRIC == 'house_has_cellphone':
+        label = 'Device Penetration'
+    elif METRIC == 'est_monthly_phone_cost_pc':
+        label = 'Spend on Phone Services Per Capita ($/mo)'
+    else:
+        label = 'UNKNOWN'
+    ax.set_title(f'{COUNTRY} Observed vs Actual with Prediction Intervals (1 std)\nMetric: {label}')
 
     savepath = os.path.join(FIGURES_DIR, f'{METRIC}.png')
     print(f'saving to {savepath}')

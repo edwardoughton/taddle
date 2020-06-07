@@ -76,27 +76,27 @@ if __name__ == '__main__':
     # for example: r2_rcv means r2 using randomized cross validation
     # another example: yhat_scv_train means yhat using spatial cross validation on the train set
     print("running randomized cv...")
-    r2_rcv, _, ridges_rcv, scalers_rcv = run_randomized_cv(x_train, y_train, random_seed=RANDOM_SEED)
-    re_rcv = RidgeEnsemble(ridges_rcv, scalers_rcv)
+    r2_rcv, _, ridges_rcv = run_randomized_cv(x_train, y_train, random_seed=RANDOM_SEED)
+    re_rcv = RidgeEnsemble(ridges_rcv)
     yhat_rcv_valid = re_rcv.predict(x_valid)
     r2_rcv_valid = r2_score(y_valid, yhat_rcv_valid)
-    print(f"randomized cv r2: {r2_rcv}, validation r2: {r2_rcv_valid}")
     pearson_r2_rcv = pearsonr(y_valid, yhat_rcv_valid)[0]**2
-    print(f"validation pearson R squared: {pearson_r2_rcv}")
+    print(f"train r2: {r2_rcv}\tvalidation r2: {r2_rcv_valid}\tvalidation pearson R2: {pearson_r2_rcv}")
 
     print()
     
     groups, _ = assign_groups(df_train, 5, random_seed=RANDOM_SEED)
     print("running spatial cv...")
-    r2_scv, yhat_scv_train, ridges_scv, scalers_scv = run_spatial_cv(x_train, y_train, groups, random_seed=RANDOM_SEED)
-    re_scv = RidgeEnsemble(ridges_scv, scalers_scv)
+    r2_scv, _, ridges_scv = run_spatial_cv(x_train, y_train, groups, random_seed=RANDOM_SEED)
+    re_scv = RidgeEnsemble(ridges_scv)
+    yhat_scv_train = re_scv.predict(x_train)
     yhat_scv_valid = re_scv.predict(x_valid)
     r2_scv_valid = r2_score(y_valid, yhat_scv_valid)
-    print(f"spatial cv r2: {r2_scv}, validation r2: {r2_scv_valid}")
     pearson_r2_scv = pearsonr(y_valid, yhat_scv_valid)[0]**2
-    print(f"validation pearson R squared: {pearson_r2_scv}")
+    print(f"train r2: {r2_scv}\tvalidation r2: {r2_scv_valid}\tvalidation pearson R2: {pearson_r2_scv}")
 
     print()
+
     savedir = os.path.join(RESULTS_DIR, TYPE, COUNTRY, METRIC, 'ridge_models')
     savepath = os.path.join(savedir, f'{METRIC}.joblib')
     os.makedirs(savedir, exist_ok=True)

@@ -110,13 +110,16 @@ def create_plot(min_population=100, under_color='gray'):
     fig.colorbar(cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax)
     gpd.plotting.plot_polygon_collection(ax, geometry, values=coloring_guide, **kwargs)
 
-    units = ''
-    if METRIC in ['est_monthly_phone_cost_pc']:
-        units = '($/year)'
-
-    label = METRIC.replace('_', ' ')
+    label = None
+    if METRIC == 'house_has_cellphone':
+        label = 'Predicted Device Penetration'
+    elif METRIC == 'est_monthly_phone_cost_pc':
+        label = 'Predicted Spend on Phone Services Per Capita ($/mo)'
+    else:
+        label = 'UNKNOWN'
+        
     population_label = '' if min_population is None else f'\n(min. pop. {min_population})'
-    ax.set_title(f'{COUNTRY_ABBRV} Predicted {label.title() + units}{population_label}', fontsize=10)
+    ax.set_title(f'{COUNTRY_ABBRV} {label}{population_label}', fontsize=10)
     ctx.add_basemap(ax, crs=df_geo.crs)
 
     savepath = os.path.join(FIGURES_DIR, f'{METRIC}.png')
