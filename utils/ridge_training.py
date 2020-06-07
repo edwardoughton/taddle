@@ -1,7 +1,6 @@
 '''
 This code contains function that are used to run cross-validation. The models
-created in this file are then ensembled. Some of this code is based
-on code from Jean et al's Github.
+created in this file are then ensembled.
 
 Written by Jatin Mathur
 
@@ -43,16 +42,6 @@ def run_randomized_cv(X, y, k=5, k_inner=5, random_seed=7, points=10,
     return np.mean(r2s), y_hat, ridges
 
 
-# def scale_features(X_train, X_test):
-#     """
-#     Scales features using StandardScaler.
-#     """
-#     X_scaler = StandardScaler(with_mean=True, with_std=False)
-#     X_train = X_scaler.fit_transform(X_train)
-#     X_test = X_scaler.transform(X_test)
-#     return X_train, X_test, X_scaler
-
-
 def train_and_predict_ridge(alpha, X_train, y_train, X_test):
     """
     Trains ridge model and predicts test set.
@@ -75,7 +64,6 @@ def find_best_alpha(X, y, k_inner, alphas, to_print=False):
         for train_idx, test_idx in kf.split(X):
             X_train, X_test = X[train_idx], X[test_idx]
             y_train, y_test = y[train_idx], y[test_idx]
-            # X_train, X_test, _ = scale_features(X_train, X_test)
             y_hat[test_idx], _ = train_and_predict_ridge(alpha, X_train, y_train, X_test)
         r2 = metrics.r2_score(y, y_hat)
         if r2 > best_r2:
@@ -93,7 +81,6 @@ def evaluate_fold(X, y, train_idx, test_idx, k_inner, alphas, to_print=False):
     X_train, X_test = X[train_idx], X[test_idx]
     y_train, y_test = y[train_idx], y[test_idx]
     best_alpha = find_best_alpha(X_train, y_train, k_inner, alphas, to_print)
-    # X_train, X_test, scaler = scale_features(X_train, X_test)
     y_test_hat, ridge = train_and_predict_ridge(best_alpha, X_train, y_train, X_test)
     r2 = metrics.r2_score(y_test, y_test_hat)
     return r2, y_test_hat, ridge
@@ -130,7 +117,6 @@ def evaluate_spatial_fold(X, y, groups, train_idx, test_idx, alphas):
     y_train, y_test = y[train_idx], y[test_idx]
     groups_train = groups[train_idx]
     best_alpha = find_best_alpha_spatial(X_train, y_train, groups_train, alphas)
-    # X_train, X_test, scaler = scale_features(X_train, X_test)
     y_test_hat, ridge = train_and_predict_ridge(best_alpha, X_train, y_train, X_test)
     r2 = metrics.r2_score(y_test, y_test_hat)
     return r2, y_test_hat, ridge

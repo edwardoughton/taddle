@@ -59,7 +59,7 @@ def create_folders():
     return
 
 
-def load_COUNTRY_ABBRV_df():
+def load_country_abbrv_df():
     print('loading images dataframe')
     filepath = os.path.join(GRID_DIR, 'image_download_locs.csv')
     df_images = pd.read_csv(filepath)
@@ -186,7 +186,7 @@ if __name__ == '__main__':
 
     if not os.path.exists(feats_path):
         print('running forward pass')
-        df_images = load_COUNTRY_ABBRV_df()
+        df_images = load_country_abbrv_df()
         model = load_model()
         modify_model(model)
         feats, df_forward_pass = run_forward_pass(model, df_images)
