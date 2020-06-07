@@ -104,7 +104,7 @@ features within each grid, and then using the Ridge Regression models to predict
 An example is shown below:
 
 <p align="center">
-  <img src="figures/house_has_cellphone.png"></img>
+  <img src="figures/house_has_cellphone.png" height=800></img>
 </p>
 
 The color gray indicates regions with too few people (under 100) to be considered. This probably means water, forests, deserts or some other less habitable terrain.
