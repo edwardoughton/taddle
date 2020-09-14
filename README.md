@@ -126,10 +126,10 @@ The second slowest step will be training the CNN. On a single GPU, this should t
 Background and funding
 ======================
 
-**taddle** has been funded by UK EPSRC via the Infrastructure Transitions Research
-Consortium (EP/N017064/1) and a subsequent EPSRC Impact Accelerator Award.
+**taddle** was part funded by (i) the UK EPSRC via the Infrastructure Transitions Research
+Consortium (EP/N017064/1) and (ii) George Mason University.
 
 Contributors
 ============
-- Edward J. Oughton (University of Oxford)
+- Edward J. Oughton (eoughton@gmu.edu)
 - Jatin Mathur (jatinm2@illinois.edu)
