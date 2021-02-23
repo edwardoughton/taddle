@@ -39,7 +39,7 @@ def create_folders():
     os.makedirs(os.path.join(RESULTS_DIR, 'figures'), exist_ok=True)
 
 
-def create_plot(country, metric, min_population=100, under_color='b'):
+def create_plot(country, metric, min_population=1000, under_color='#696969'):
     """
     This method creates a geospatial figure depicting the predictions
     for a given metric within a grid.
@@ -73,9 +73,9 @@ def create_plot(country, metric, min_population=100, under_color='b'):
     if min_population is None:
         df_geo['to_ignore'] = False
     else:
-        to_use = df_geo['population'] > min_population
+        to_use = df_geo['population'] >= min_population
         df_geo['to_ignore'] = True
-        df_geo['to_ignore'].loc[to_use] = False
+        df_geo.loc[to_use, 'to_ignore'] = False
 
     df_geo = merge_on_lat_lon(df_geo, preds, keys=['centroid_lat', 'centroid_lon'], how='left')
 
@@ -83,17 +83,23 @@ def create_plot(country, metric, min_population=100, under_color='b'):
 
     # if prediction is under 0, set to 0
     coloring_guide = df_geo[f'predicted_{metric}_pc']
+    if metric in ['consumption', 'phone_consumption']:
+        coloring_guide /= 12 # we want to show monthly
     coloring_guide.loc[coloring_guide < 0] = 0
-    vmin = coloring_guide.mean() - 3 * coloring_guide.std()
-    if vmin < 0 or vmin - 0 < 0.05:
-        vmin = 0
-
     coloring_guide.fillna(-1, inplace=True)
     coloring_guide.loc[df_geo['to_ignore']] = -1
 
+    vmin = coloring_guide.mean() - 2 * coloring_guide.std()
+    if vmin < 0:
+        vmin = 0
+    elif vmin < coloring_guide.min():
+        vmin = coloring_guide.min()
+    vmax = coloring_guide.mean() + 2 * coloring_guide.std()
+    if vmax > coloring_guide.max():
+        vmax = coloring_guide.max()
+
     cmap = cm.get_cmap('inferno')
     cmap.set_under(under_color)
-    vmax = coloring_guide.mean() + 3 * coloring_guide.std()
 
     kwargs = {
         'vmin': vmin,
@@ -110,10 +116,10 @@ def create_plot(country, metric, min_population=100, under_color='b'):
 
     units = ''
     if metric in ['consumption', 'phone_consumption']:
-        units = '($/year)'
+        units = '($/month)'
 
     label = (metric +' per capita').replace('_', ' ')
-    ax.set_title(f'Malawi Predicted {label.title() + units}', fontsize=10)
+    ax.set_title(f'Malawi Predicted {label.title() + units}\n (min pop per grid: {min_population})', fontsize=10)
     ctx.add_basemap(ax, crs=df_geo.crs)
 
     save_dir = os.path.join(RESULTS_DIR, 'figures', f'predicted_{metric}_per_capita.png')

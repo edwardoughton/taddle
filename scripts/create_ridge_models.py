@@ -184,8 +184,8 @@ class CreateRidge:
         Code has been adapted from Jean et al. 2016.
 
         """
-        self.cluster_feats = np.load(CNN_LSMS_CLUSTER_FEATS)
-        self.cluster_order = pickle.load(open(CNN_LSMS_CLUSTER_ORDER, 'rb'))
+        self.cluster_feats = np.load("aggregated_feats.npy") # np.load(CNN_LSMS_CLUSTER_FEATS)
+        self.cluster_order = np.load("cluster_locs.npy") # pickle.load(open(CNN_LSMS_CLUSTER_ORDER, 'rb'))
         self.cluster_data = pd.read_csv(CLUSTER_DATA_DIR)
 
         # makes sure the cluster order matches the cluster data one-to-one
@@ -237,12 +237,12 @@ class CreateRidge:
 
         print(f'Training model on log {metric}...')
         y_hat_log, r2, _, _ = predict_metric(self.cluster_feats, y_log)
-        print(f'R2: {r2}')
+        print(f'Avg. R2: {r2}\t Out-of-fold prediction R2: {metrics.r2_score(y_log, y_hat_log)}')
         print()
 
         print(f'Training model on {metric}...')
         y_hat, r2, ridges, scalers = predict_metric(self.cluster_feats, y)
-        print(f'R2: {r2}')
+        print(f'R2: {r2}, \t Out-of-fold prediction R2: {metrics.r2_score(y, y_hat)}')
         print()
 
         re = RidgeEnsemble(ridges, scalers)
@@ -555,7 +555,7 @@ if __name__ == '__main__':
     warning = (f'Make sure you have applied the CNN on the cluster images \
         and saved the result to {CNN_LSMS_CLUSTER_FEATS}`')
 
-    assert os.path.isfile(CNN_LSMS_CLUSTER_FEATS), print(warning)
+    # assert os.path.isfile(CNN_LSMS_CLUSTER_FEATS), print(warning)
 
     if arg == '--all' or '--train' in arg:
         cr = CreateRidge()

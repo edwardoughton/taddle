@@ -3,7 +3,7 @@ Visualization script
 
 Written by Jatin Mathur and Ed Oughton.
 
-January 2020
+Winter 2020
 
 """
 import os
@@ -65,8 +65,12 @@ def prepare_data():
         xminPixel, yminPixel, xmaxPixel, ymaxPixel = (
             int(xminPixel), int(yminPixel), int(xmaxPixel), int(ymaxPixel)
         )
+
+        arr = im_array[yminPixel:ymaxPixel,xminPixel:xmaxPixel]
+        arr[ arr < 0 ] = 0 # can't have negative populations
         cluster_population.append(
-            round(im_array[yminPixel:ymaxPixel,xminPixel:xmaxPixel].mean()))
+            round(arr.mean())
+        )
 
     df_clusters['cluster_population_density_1km2'] = cluster_population
 
@@ -95,9 +99,7 @@ def create_space(lat, lon):
 
 
 def r2(x, y):
-
     coef = round(np.corrcoef(x, y)[0, 1]**2, 3)
-
     return coef
 
 
@@ -172,45 +174,25 @@ def create_prediction_regplot(data):
     data['predicted_monthly_consumption'] = data['predicted_consumption'] / 12
     data['predicted_monthly_phone_consumption'] = data['predicted_phone_consumption'] / 12
 
-    bins = [0, 400, 800, 1200, 4020]
-    labels = [5, 15, 25, 60]
-    data['pop_density_binned'] = pd.cut(data['cluster_population_density_1km2'], bins=bins, labels=labels)
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10,4))
 
-    fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(10,8))
-
-    coef1 = r2(data['cluster_monthly_consumption_pc'], data['predicted_monthly_consumption'])
-    g = sns.regplot(x="cluster_monthly_consumption_pc", y="predicted_monthly_consumption",
-        data=data, ax=ax1, scatter_kws={'alpha': 0.2, 'color':'blue'},
-        line_kws={'alpha': 0.5, 'color':'black'})
-    g.set(xlabel='Observed ($)', ylabel='Predicted ($)',
-        title='Consumption: Observed vs \n Predicted (R$^2$={})'.format(str(coef1)),
-        xlim=(0, 400), ylim=(0, 400))
-
-    # coef2 = r2(data['cluster_monthly_phone_cost_pc'], data['???']) #predicted phone cost
-    # g = sns.regplot(x="cluster_monthly_phone_cost_pc", y="???", #predicted phone cost
-    #     data=data, ax=ax2, scatter_kws={'alpha': 0.2, 'color':'blue'},
-    #     line_kws={'alpha': 0.5, 'color':'black'})
-    # g.set(xlabel='Observed ($)', ylabel='Predicted ($)', #predicted phone cost
-    #     title='Phone Cost: Observed vs \n Predicted (R$^2$={})'.format(str(coef2)),
-    #     ylim=(0, 50))
-
-    coef3 = r2(data['cluster_cellphones_pc'], data['predicted_phone_density'])
+    coef1 = r2(data['cluster_cellphones_pc'], data['predicted_phone_density'])
     #Check: I'm not sure 'predicted_phone_density' is a density - isn't it penetration rate?
     g = sns.regplot(x="cluster_cellphones_pc", y="predicted_phone_density",
-        data=data, ax=ax3, scatter_kws={'alpha': 0.2, 'color':'blue'},
+        data=data, ax=ax1, scatter_kws={'alpha': 0.2, 'color':'blue'},
         line_kws={'alpha': 0.5, 'color':'black'})
-    g.set(xlabel='Observed ($)', ylabel='Predicted ($)',
-        title='Phone Penetration: Observed vs \n Predicted (R$^2$={})'.format(str(coef3)),
+    g.set(xlabel='Observed', ylabel='Predicted',
+        title='{} Device Penetration: Observed vs \n Predicted (R$^2$={})'.format(COUNTRY, str(coef1)),
         xlim=(0, 1), ylim=(0, 1))
 
-    coef4 = r2(data['cluster_monthly_phone_consumption_pc'],
+    coef2 = r2(data['cluster_monthly_phone_consumption_pc'],
             data['predicted_monthly_phone_consumption'])
     g = sns.regplot(x="cluster_monthly_phone_consumption_pc",
             y="predicted_monthly_phone_consumption",
-        data=data, ax=ax4, scatter_kws={'alpha': 0.2, 'color':'blue'},
+        data=data, ax=ax2, scatter_kws={'alpha': 0.2, 'color':'blue'},
         line_kws={'alpha': 0.5, 'color':'black'})
-    g.set(xlabel='Observed ($)', ylabel='Predicted ($)', #predicted phone cost
-        title='Phone Consumption: Observed vs \n Predicted (R$^2$={})'.format(str(coef4)),
+    g.set(xlabel='Observed ($/mo)', ylabel='Predicted ($/mo)', #predicted phone cost
+        title='{} Spend on Phone Services: Observed vs \n Predicted (R$^2$={})'.format(COUNTRY, str(coef2)),
         xlim=(0, 15), ylim=(0, 15))
 
     fig.tight_layout()
@@ -227,15 +209,6 @@ if __name__ == '__main__':
 
     data = prepare_data()
 
-    # Index(['cluster_lat', 'cluster_lon', 'cluster_persons_surveyed',
-    #    'cluster_annual_consumption_pc', 'cluster_annual_phone_consumption_pc',
-    #    'cluster_cellphones_pc', 'cluster_estimated_annual_phone_cost_pc',
-    #    'cluster_nightlights', 'predicted_consumption',
-    #    'predicted_log_consumption', 'predicted_phone_consumption',
-    #    'predicted_log_phone_consumption', 'predicted_phone_density',
-    #    'predicted_log_phone_density', 'cluster_population_density_1km2'],
-    #   dtype='object')
-
-    create_regplot(data)
+    # create_regplot(data)
 
     create_prediction_regplot(data)
