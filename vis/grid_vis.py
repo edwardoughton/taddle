@@ -71,9 +71,9 @@ def create_plot(min_population=100, under_color='gray'):
     if min_population is None:
         df_geo['to_ignore'] = False
     else:
-        to_use = df_geo['population'] > min_population
+        to_use = df_geo['population'] >= min_population
         df_geo['to_ignore'] = True
-        df_geo['to_ignore'].loc[to_use] = False
+        df_geo.loc[to_use, 'to_ignore'] = False
 
     df_geo = merge_on_lat_lon(df_geo, preds, keys=['centroid_lat', 'centroid_lon'], how='left')
 
@@ -88,6 +88,15 @@ def create_plot(min_population=100, under_color='gray'):
 
     coloring_guide.fillna(-1, inplace=True)
     coloring_guide.loc[df_geo['to_ignore']] = -1
+
+    vmin = coloring_guide.mean() - 2 * coloring_guide.std()
+    if vmin < 0:
+        vmin = 0
+    elif vmin < coloring_guide.min():
+        vmin = coloring_guide.min()
+    vmax = coloring_guide.mean() + 2 * coloring_guide.std()
+    if vmax > coloring_guide.max():
+        vmax = coloring_guide.max()
 
     cmap = cm.get_cmap('inferno')
     cmap.set_under(under_color)
@@ -110,6 +119,7 @@ def create_plot(min_population=100, under_color='gray'):
     fig.colorbar(cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax)
     gpd.plotting.plot_polygon_collection(ax, geometry, values=coloring_guide, **kwargs)
 
+<<<<<<< HEAD
     label = None
     if METRIC == 'house_has_cellphone':
         label = 'Predicted Device Penetration'
@@ -120,6 +130,14 @@ def create_plot(min_population=100, under_color='gray'):
         
     population_label = '' if min_population is None else f'\n(min. pop. {min_population})'
     ax.set_title(f'{COUNTRY_ABBRV} {label}{population_label}', fontsize=10)
+=======
+    units = ''
+    if metric in ['consumption', 'phone_consumption']:
+        units = '($/month)'
+
+    label = (metric +' per capita').replace('_', ' ')
+    ax.set_title(f'Malawi Predicted {label.title() + units}\n (min pop per grid: {min_population})', fontsize=10)
+>>>>>>> dae5c0d (some inconsistencies in paper, need to address)
     ctx.add_basemap(ax, crs=df_geo.crs)
 
     savepath = os.path.join(FIGURES_DIR, f'{METRIC}.png')
