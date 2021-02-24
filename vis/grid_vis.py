@@ -119,7 +119,6 @@ def create_plot(min_population=100, under_color='gray'):
     fig.colorbar(cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax)
     gpd.plotting.plot_polygon_collection(ax, geometry, values=coloring_guide, **kwargs)
 
-<<<<<<< HEAD
     label = None
     if METRIC == 'house_has_cellphone':
         label = 'Predicted Device Penetration'
@@ -130,14 +129,6 @@ def create_plot(min_population=100, under_color='gray'):
         
     population_label = '' if min_population is None else f'\n(min. pop. {min_population})'
     ax.set_title(f'{COUNTRY_ABBRV} {label}{population_label}', fontsize=10)
-=======
-    units = ''
-    if metric in ['consumption', 'phone_consumption']:
-        units = '($/month)'
-
-    label = (metric +' per capita').replace('_', ' ')
-    ax.set_title(f'Malawi Predicted {label.title() + units}\n (min pop per grid: {min_population})', fontsize=10)
->>>>>>> dae5c0d (some inconsistencies in paper, need to address)
     ctx.add_basemap(ax, crs=df_geo.crs)
 
     savepath = os.path.join(FIGURES_DIR, f'{METRIC}.png')
