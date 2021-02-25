@@ -10,7 +10,6 @@ import os
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from IPython.display import display
 import matplotlib.pyplot as plt
 import logging
 
@@ -96,15 +95,17 @@ def download_images(df):
     
     Saves images to the corresponding inside COUNTRIES_DIR/<country>/cnn_images
     """
-    access = None
-    
+    access = open(ACCESS_TOKEN_DIR, 'r').readlines()[0].strip()
     imd = PlanetDownloader(access)
     num_retries = 20
     wait_time = 0.1 # seconds
 
     # drops what is already downloaded
-    already_downloaded = os.listdir(os.path.join(COUNTRIES_DIR, 'malawi_2016', 'cnn_images')) + \
-                        os.listdir(os.path.join(COUNTRIES_DIR, 'ethiopia_2015', 'cnn_images'))
+    mw_im_savefolder = os.path.join(COUNTRIES_DIR, 'malawi_2016', 'cnn_images')
+    eth_im_savefolder = os.path.join(COUNTRIES_DIR, 'ethiopia_2015', 'cnn_images')
+    os.makedirs(mw_im_savefolder, exist_ok=True)
+    os.makedirs(eth_im_savefolder, exist_ok=True)
+    already_downloaded = os.listdir(mw_im_savefolder) + os.listdir(eth_im_savefolder)
     print('Already downloaded ' + str(len(already_downloaded)))
     df = df.set_index('image_name').drop(already_downloaded).reset_index()
     print('Need to download ' + str(len(df)))
@@ -148,4 +149,4 @@ def download_images(df):
 
 if __name__ == '__main__':
     df_download = preprocess()
-    # download_images(df_download)
+    download_images(df_download)

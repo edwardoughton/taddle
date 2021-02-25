@@ -20,9 +20,9 @@ BASE_DIR = '.'
 # repo imports
 import sys
 sys.path.append(BASE_DIR)
-from config import PREDICTION_MAPS_CONFIG
+from config import VIS_CONFIG
 
-COUNTRY_ABBRV = PREDICTION_MAPS_CONFIG['COUNTRY_ABBRV']
+COUNTRY_ABBRV = VIS_CONFIG['COUNTRY_ABBRV']
 COUNTRIES_DIR = os.path.join(BASE_DIR, 'data', 'countries')
 SHAPEFILE_DIR = os.path.join(COUNTRIES_DIR, COUNTRY_ABBRV, 'shapefile')
 GRID_DIR = os.path.join(COUNTRIES_DIR, COUNTRY_ABBRV, 'grid')

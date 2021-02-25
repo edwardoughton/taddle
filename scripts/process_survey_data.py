@@ -31,7 +31,7 @@ Each row should represent one cluster by combining the household data
 '''
 
 def process_malawi():
-    lsms_dir = os.path.join(COUNTRIES_DIR, 'malawi_2016', 'LSMS')
+    lsms_dir = os.path.join(COUNTRIES_DIR, 'LSMS', 'malawi_2016')
     consumption_file = 'IHS4 Consumption Aggregate.csv'
     hhsize_col = 'hhsize' # people in household
 
@@ -79,7 +79,7 @@ def process_malawi():
     return df_clusters
 
 def process_ethiopia():
-    lsms_dir = os.path.join(COUNTRIES_DIR, 'ethiopia_2015', 'LSMS')
+    lsms_dir = os.path.join(COUNTRIES_DIR, 'LSMS', 'ethiopia_2015')
     consumption_file = 'Consumption Aggregate/cons_agg_w3.csv'
     hhsize_col = 'hh_size' # people in household
 

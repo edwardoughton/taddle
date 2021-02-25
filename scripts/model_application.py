@@ -31,19 +31,19 @@ BASE_DIR = '.'
 import sys
 sys.path.append(BASE_DIR)
 from utils import merge_on_lat_lon
-from config import PREDICTION_MAPS_CONFIG, RANDOM_SEED
+from config import VIS_CONFIG, RANDOM_SEED
 
 COUNTRIES_DIR = os.path.join(BASE_DIR, 'data', 'countries')
 RESULTS_DIR = os.path.join(BASE_DIR, 'results')
 
-COUNTRY_ABBRV = PREDICTION_MAPS_CONFIG['COUNTRY_ABBRV']
+COUNTRY_ABBRV = VIS_CONFIG['COUNTRY_ABBRV']
 CNN_GRID_OUTPUTS = os.path.join(RESULTS_DIR, 'prediction_maps', COUNTRY_ABBRV, 'cnn')
 GRID_DIR = os.path.join(COUNTRIES_DIR, COUNTRY_ABBRV, 'grid')
 IMAGE_DIR = os.path.join(COUNTRIES_DIR, COUNTRY_ABBRV, 'images')
 
-TYPE = PREDICTION_MAPS_CONFIG['TYPE']
-COUNTRY = PREDICTION_MAPS_CONFIG['COUNTRY']
-METRIC = PREDICTION_MAPS_CONFIG['METRIC']
+TYPE = VIS_CONFIG['TYPE']
+COUNTRY = VIS_CONFIG['COUNTRY']
+METRIC = VIS_CONFIG['METRIC']
 
 CNN_SAVE_DIR = os.path.join(BASE_DIR, 'models', TYPE, COUNTRY, METRIC)
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')

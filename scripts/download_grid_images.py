@@ -25,9 +25,9 @@ BASE_DIR = '.'
 import sys
 sys.path.append(BASE_DIR)
 from utils import PlanetDownloader
-from config import PREDICTION_MAPS_CONFIG, RANDOM_SEED
+from config import VIS_CONFIG, RANDOM_SEED
 
-COUNTRY_ABBRV = PREDICTION_MAPS_CONFIG['COUNTRY_ABBRV']
+COUNTRY_ABBRV = VIS_CONFIG['COUNTRY_ABBRV']
 COUNTRIES_DIR = os.path.join(BASE_DIR, 'data', 'countries')
 GRID_DIR = os.path.join(COUNTRIES_DIR, COUNTRY_ABBRV, 'grid')
 IMAGE_DIR = os.path.join(COUNTRIES_DIR, COUNTRY_ABBRV, 'images')

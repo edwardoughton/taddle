@@ -21,22 +21,24 @@ import math
 import warnings
 warnings.filterwarnings('ignore')
 
-CONFIG_DATA = configparser.ConfigParser()
-CONFIG_DATA.read(os.path.join(os.path.dirname(__file__), '..', 'scripts','script_config.ini'))
+import sys
+# wherever we are called from, we move to the directory of this script
+self_dir = os.path.dirname(os.path.join(os.getcwd(), sys.argv[0]))
+os.chdir(self_dir)
 
-CONFIG_COUNTRY = configparser.ConfigParser()
-CONFIG_COUNTRY.read('script_config.ini')
-COUNTRY = CONFIG_COUNTRY['DEFAULT']['COUNTRY']
-SHAPEFILE_DIR = f'countries/{COUNTRY}/shapefile'
-GRID_DIR = f'countries/{COUNTRY}/grid'
-RESULTS_DIR = f'countries/{COUNTRY}/results'
-WORLDPOP = 'data/world_population'
-CLUSTER_DATA_DIR = f'data/LSMS/{COUNTRY}/processed/cluster_data.csv'
-CLUSTER_FIGURES_DIR = f'data/LSMS/{COUNTRY}/figures'
-CLUSTER_PREDICTIONS_DIR = f'data/LSMS/{COUNTRY}/output/cluster_predictions.csv'
+BASE_DIR = ".."
+sys.path.append(BASE_DIR)
+from config import VIS_CONFIG
 
-# Purchasing Power Adjustment
-PPP = float(CONFIG_COUNTRY['DEFAULT']['PPP'])
+COUNTRY_NAME = VIS_CONFIG['COUNTRY_NAME']
+TYPE = VIS_CONFIG['TYPE']
+COUNTRY = VIS_CONFIG['COUNTRY']
+METRIC = VIS_CONFIG['METRIC']
+
+RESULTS_DIR = os.path.join(BASE_DIR, f'results/{TYPE}/{COUNTRY}/')
+WORLDPOP = os.path.join(BASE_DIR, 'data/world_population')
+CLUSTER_PREDICTIONS_DIR = os.path.join(BASE_DIR, f'data/LSMS/{COUNTRY}/output/cluster_predictions.csv')
+CLUSTER_FIGURES_DIR = os.path.join(RESULTS_DIR, "figures")
 
 def create_folders():
     os.makedirs(CLUSTER_FIGURES_DIR, exist_ok=True)
@@ -104,17 +106,9 @@ def r2(x, y):
     coef = round(np.corrcoef(x, y)[0, 1]**2, 3)
     return coef
 
-assert TYPE in ['single_country', 'country_held_out']
-assert COUNTRY in ['malawi_2016', 'ethiopia_2015']
-assert METRIC in ['house_has_cellphone', 'est_monthly_phone_cost_pc']
 
-
-def create_folders():
-    os.makedirs(FIGURES_DIR, exist_ok=True)
-
-
-def load_data():
-    return pd.read_csv(os.path.join(RESULTS_DIR, TYPE, COUNTRY, METRIC, 'cluster_predictions', f'{METRIC}.csv'))
+def load_predictions():
+    return pd.read_csv(os.path.join(RESULTS_DIR, METRIC, 'cluster_predictions', f'{METRIC}.csv'))
 
 
 def solve_std(y_train, y_hat_train):
@@ -125,7 +119,7 @@ def solve_std(y_train, y_hat_train):
 
 
 def plot_predictions():
-    df_preds = load_data()
+    df_preds = load_predictions()
     df_train = df_preds[df_preds['is_train']]
     std = solve_std(df_train[METRIC].values, df_train[f'pred_{METRIC}'].values)
     df_valid = df_preds[~df_preds['is_train']]
@@ -146,23 +140,30 @@ def plot_predictions():
     fig, ax = plt.subplots()
     ax.scatter(y, yhat, alpha=0.4)
     ax.plot(y_i, yhat_i)
-    xloc = 0.75 * max(y_i)
+    xloc = 0.8 * max(y_i)
     yloc = 0.75 * max(yhat_i)
-    plt.text(xloc, yloc, f'r^2={round(r2, 2)}', size=12)
+    plt.text(xloc, yloc, f'r^2={round(r2, 3)}', size=12)
     ax.fill_between(y_i, (yhat_i - pi), (yhat_i + pi), color='b', alpha=.1)
-    ax.set_xlabel('Observed Value')
-    ax.set_ylabel('Predicted Value')
 
-    label = None
+    title_label = None
+    x_label = None
+    y_label = None
     if METRIC == 'house_has_cellphone':
-        label = 'Device Penetration'
+        title_label = 'Device Penetration'
+        x_label = "Observed Devices Per Capita"
+        y_label = "Predicted Devices Per Capita"
     elif METRIC == 'est_monthly_phone_cost_pc':
-        label = 'Spend on Phone Services Per Capita ($/mo)'
+        title_label = 'Spend on Phone Services Per Capita ($/mo)'
+        x_label = "Observed Spend ($/mo)"
+        y_label = "Predicted Spend ($/mo)"
     else:
-        label = 'UNKNOWN'
-    ax.set_title(f'{COUNTRY} Observed vs Actual with Prediction Intervals (1 std)\nMetric: {label}')
+        raise ValueError(f"Unsupported metric {METRIC}")
+    
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.set_title(f'{COUNTRY_NAME} {title_label}: \nObserved vs Predicted with 1 Stdv. Prediction Intervals')
 
-    savepath = os.path.join(FIGURES_DIR, f'{METRIC}.png')
+    savepath = os.path.join(CLUSTER_FIGURES_DIR, f'{METRIC}.png')
     print(f'saving to {savepath}')
     fig.savefig(savepath)
 

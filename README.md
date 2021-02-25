@@ -70,7 +70,7 @@ Create Prediction Maps
 =======================
 Now that we have trained the models, we can prediction maps for our metrics across an entire country.
 
-Set the country code for your country of interest in the `PREDICTION_MAPS_CONFIG` dictionary in `config.py`. Malawi's is MWI, and Ethiopia's is ETH.
+Set the country code for your country of interest in the `VIS_CONFIG` dictionary in `config.py`. Malawi's is MWI, and Ethiopia's is ETH.
 
 Then run:
 ```
@@ -81,7 +81,7 @@ python scripts/download_grid_images.py --download-images
 ```
 Note: for Ethiopia, we recommend reducing the number of images because Ethiopia has such a large land area. 20 images per 10km x 10km would lead to a download size of 236,000 images.
 
-Set the metric in the `PREDICTION_MAPS_CONFIG` dictionary in `config.py`. The choices are device penetration ("house_has_cellphone") and monthly cost for phone services per capita ("est_monthly_cost_pc").
+Set the metric in the `VIS_CONFIG` dictionary in `config.py`. The choices are device penetration ("house_has_cellphone") and monthly cost for phone services per capita ("est_monthly_cost_pc").
 
 Then run:
 ```
